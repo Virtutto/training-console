@@ -97,6 +97,12 @@ var PLAN = {
       Object.assign({name:"Dip negatives (3-5s lower)", sets:4, rest:150}, R("5 reps")),
       Object.assign({name:"Diamond push-ups", sets:3, rest:90}, R("MAX")),
       Object.assign({name:"Hollow body hold", sets:3, rest:60}, T(25))
+    ],
+    cooldown: [
+      Object.assign({name:"Shoulder cross-body stretch"}, T(30)),
+      Object.assign({name:"Tricep overhead stretch"}, T(30)),
+      Object.assign({name:"Wrist flexor stretch"}, T(30)),
+      Object.assign({name:"Chest doorway stretch"}, T(30))
     ]
   },
   Wednesday: {
@@ -115,6 +121,12 @@ var PLAN = {
       Object.assign({name:"Hanging knee raises", sets:4, rest:75}, R("10 reps")),
       Object.assign({name:"Nordic curl negatives", sets:3, rest:150}, R("5 reps")),
       Object.assign({name:"Plank", sets:3, rest:60}, T(40))
+    ],
+    cooldown: [
+      Object.assign({name:"Quad stretch (standing)"}, T(30)),
+      Object.assign({name:"Hamstring stretch (seated)"}, T(30)),
+      Object.assign({name:"Hip flexor stretch (kneeling)"}, T(30)),
+      Object.assign({name:"Child's pose"}, T(45))
     ]
   },
   Thursday: {
@@ -133,6 +145,12 @@ var PLAN = {
       Object.assign({name:"Dip negatives / bench dips", sets:4, rest:150}, R("6 reps")),
       Object.assign({name:"Scapular pull-ups", sets:3, rest:75}, R("8 reps")),
       Object.assign({name:"Dead hang", sets:3, rest:90}, R("MAX"))
+    ],
+    cooldown: [
+      Object.assign({name:"Lat stretch (doorway)"}, T(30)),
+      Object.assign({name:"Bicep wall stretch"}, T(30)),
+      Object.assign({name:"Scapular retractions (gentle)"}, T(20)),
+      Object.assign({name:"Dead hang (easy)"}, T(30))
     ]
   },
   Friday: {
@@ -151,6 +169,12 @@ var PLAN = {
       Object.assign({name:"Dips (assisted if needed)", sets:4, rest:105}, R("6-8 reps")),
       Object.assign({name:"Archer push-ups", sets:3, rest:90}, R("6 / side")),
       Object.assign({name:"Hollow rocks", sets:3, rest:60}, R("12 reps"))
+    ],
+    cooldown: [
+      Object.assign({name:"Shoulder cross-body stretch"}, T(30)),
+      Object.assign({name:"Chest doorway stretch"}, T(30)),
+      Object.assign({name:"Wrist circles (gentle)"}, T(20)),
+      Object.assign({name:"Child's pose"}, T(45))
     ]
   },
   Saturday: {
@@ -169,6 +193,12 @@ var PLAN = {
       Object.assign({name:"Ring rows", sets:4, rest:90}, R("10-12 reps")),
       Object.assign({name:"Australian pulls (elevated)", sets:3, rest:75}, R("10 reps")),
       Object.assign({name:"Farmer carry / dead hang", sets:3, rest:90}, T(30))
+    ],
+    cooldown: [
+      Object.assign({name:"Lat stretch (hanging)"}, T(30)),
+      Object.assign({name:"Shoulder flexion stretch"}, T(30)),
+      Object.assign({name:"Bicep stretch"}, T(20)),
+      Object.assign({name:"Wrist flexor stretch"}, T(30))
     ]
   }
 };
@@ -204,6 +234,7 @@ function buildQueue(day) {
   }
   pushBlock("WARMUP", plan.warmup);
   pushBlock("MAIN", plan.main);
+  if (plan.cooldown && !state.cooldownSkip) pushBlock("COOLDOWN", plan.cooldown);
   return queue;
 }
 
@@ -225,6 +256,7 @@ function buildQueueNoWarmup(day) {
     });
   }
   pushBlock("MAIN", plan.main);
+  if (plan.cooldown && !state.cooldownSkip) pushBlock("COOLDOWN", plan.cooldown);
   return queue;
 }
 
@@ -392,7 +424,11 @@ var state = {
   sessionLog: [],
   sessionStartTime: null,
   statsTab: "monthly",
-  statsMonthOffset: 0
+  statsMonthOffset: 0,
+  personalRecords: {},
+  restAdjustments: {},
+  lastPR: null,
+  cooldownSkip: false
 };
 (function loadAll(){
   var raw = Storage.get("workout-history");
@@ -414,6 +450,12 @@ var state = {
   state.notes = rawNotes ? JSON.parse(rawNotes) : {};
   var rawWarmupSkip = Storage.get("warmup-skip");
   if (rawWarmupSkip === "true") state.warmupSkip = true;
+  var rawPRs = Storage.get("personal-records");
+  state.personalRecords = rawPRs ? JSON.parse(rawPRs) : {};
+  var rawAdj = Storage.get("rest-adjustments");
+  state.restAdjustments = rawAdj ? JSON.parse(rawAdj) : {};
+  var rawCooldownSkip = Storage.get("cooldown-skip");
+  if (rawCooldownSkip === "true") state.cooldownSkip = true;
   restoreSession();
 })();
 
@@ -482,6 +524,79 @@ function toggleWarmupSkip() {
   Storage.set("warmup-skip", JSON.stringify(state.warmupSkip));
   render();
 }
+function toggleCooldownSkip() {
+  state.cooldownSkip = !state.cooldownSkip;
+  Storage.set("cooldown-skip", JSON.stringify(state.cooldownSkip));
+  render();
+}
+
+/* ============================================================
+   PR TRACKER
+   ============================================================ */
+function getPR(exerciseName) {
+  return state.personalRecords[exerciseName] || null;
+}
+function checkForPR(exerciseName, actualReps, difficulty) {
+  var prev = state.personalRecords[exerciseName];
+  var isPR = false;
+  var prType = "";
+  if (!prev) {
+    /* First time â€” any completion is a PR */
+    isPR = true;
+    prType = "FIRST LOG";
+  } else if (actualReps != null && prev.bestReps != null && actualReps > prev.bestReps) {
+    isPR = true;
+    prType = "REPS: " + prev.bestReps + " â†’ " + actualReps;
+  } else if (difficulty === "easy" && prev.lastDifficulty !== "easy") {
+    isPR = true;
+    prType = "MASTERY: " + (prev.lastDifficulty || "unknown") + " â†’ EASY";
+  }
+  if (isPR) {
+    state.personalRecords[exerciseName] = {
+      bestReps: actualReps != null ? actualReps : (prev ? prev.bestReps : null),
+      lastDifficulty: difficulty,
+      date: todayISO,
+      streak: prev && prev.date === getPrevTrainingDate(todayISO) ? (prev.streak || 0) + 1 : 1
+    };
+    Storage.set("personal-records", JSON.stringify(state.personalRecords));
+    state.lastPR = { exercise: exerciseName, type: prType, date: todayISO };
+  } else {
+    state.lastPR = null;
+  }
+  return isPR;
+}
+function getPrevTrainingDate(iso) {
+  /* Simple: yesterday or two days ago (skip rest days) */
+  var d = new Date(iso + "T00:00:00");
+  for (var i = 1; i <= 3; i++) {
+    d.setDate(d.getDate() - 1);
+    var dow = d.getDay();
+    if (dow !== 0 && dow !== 3) return d.toISOString().slice(0,10);
+  }
+  return null;
+}
+
+/* ============================================================
+   ADAPTIVE REST
+   ============================================================ */
+function calculateAdaptiveRest(baseRest, difficulty, exerciseName) {
+  if (!baseRest || baseRest <= 0) return baseRest;
+  var adj = state.restAdjustments[exerciseName] || 0;
+  if (difficulty === "easy") adj -= 15;
+  else if (difficulty === "hard") adj += 15;
+  else if (difficulty === "failed") adj += 30;
+  /* Clamp: rest can't go below 15s or above base+60s */
+  adj = Math.max(adj, -(baseRest - 15));
+  adj = Math.min(adj, 60);
+  state.restAdjustments[exerciseName] = adj;
+  Storage.set("rest-adjustments", JSON.stringify(state.restAdjustments));
+  return Math.max(15, baseRest + adj);
+}
+function getRestAdjLabel(exerciseName) {
+  var adj = state.restAdjustments[exerciseName] || 0;
+  if (adj === 0) return "";
+  return (adj > 0 ? "+" : "") + adj + "s";
+}
 function toggleBoulder() {
   if (state.boulderLoggedToday) {
     saveHistory(state.history.filter(function(r){ return !(r.date === todayISO && r.type === "boulder"); }));
@@ -534,6 +649,7 @@ function recordSetLog(difficulty) {
   state.setLogs = state.setLogs.concat([entry]);
   Storage.set("set-log", JSON.stringify(state.setLogs));
   state.sessionLog.push(entry);
+  checkForPR(cur.name, actualReps, difficulty);
   goToRestOrNext();
 }
 function advancePhase() {
@@ -552,7 +668,8 @@ function advancePhase() {
 function finishReps() { triggerAlert(660,0.25,[150,80,150]); state.phase = "logSet"; render(); }
 function goToRestOrNext() {
   var cur = currentStep();
-  var rest = cur.restAfter || 0;
+  var baseRest = cur.restAfter || 0;
+  var rest = calculateAdaptiveRest(baseRest, state.sessionLog[state.sessionLog.length-1].difficulty, cur.name);
   var isLast = state.stepIdx >= state.queue.length - 1;
   if (rest > 0 && !isLast) { state.phase = "rest"; startTimedPhase(rest); render(); runTimer(); }
   else { goToNextStep(); }
@@ -755,6 +872,9 @@ function exportData() {
     themeKey: state.themeKey,
     notes: state.notes,
     warmupSkip: state.warmupSkip,
+    personalRecords: state.personalRecords,
+    restAdjustments: state.restAdjustments,
+    cooldownSkip: state.cooldownSkip,
     exportedAt: new Date().toISOString()
   }, null, 2);
   var blob = new Blob([payload], { type: "application/json" });
@@ -781,6 +901,9 @@ function handleImportFile(e) {
       if (data.themeKey && THEMES[data.themeKey]) { state.themeKey = data.themeKey; Storage.set("theme-key", data.themeKey); }
       if (data.notes) { state.notes = data.notes; Storage.set("exercise-notes", JSON.stringify(data.notes)); }
       if (data.warmupSkip != null) { state.warmupSkip = !!data.warmupSkip; Storage.set("warmup-skip", JSON.stringify(state.warmupSkip)); }
+      if (data.personalRecords) { state.personalRecords = data.personalRecords; Storage.set("personal-records", JSON.stringify(data.personalRecords)); }
+      if (data.restAdjustments) { state.restAdjustments = data.restAdjustments; Storage.set("rest-adjustments", JSON.stringify(data.restAdjustments)); }
+      if (data.cooldownSkip != null) { state.cooldownSkip = !!data.cooldownSkip; Storage.set("cooldown-skip", JSON.stringify(state.cooldownSkip)); }
       state.boulderLoggedToday = state.history.some(function(r){ return r.date === todayISO && r.type === "boulder"; });
       render();
       alert("Import complete.");
@@ -948,6 +1071,20 @@ function renderOverview() {
         '<button onclick="openEditModal(\''+state.selectedDay+'\',\'MAIN\','+idx+')" style="color:'+TEXT_DIM+';">'+icoPencil(TEXT_DIM)+'</button>'+
         '</span></div>';
     });
+    if (dayPlan.cooldown) {
+      html += '<div class="row" style="margin-top:14px;margin-bottom:8px;"><div class="dim" style="font-size:10px;letter-spacing:2px;">COOLDOWN</div>'+
+        '<button onclick="toggleCooldownSkip()" style="font-size:10px;letter-spacing:1px;color:'+(state.cooldownSkip?t.accent:TEXT_DIM)+';display:flex;align-items:center;gap:5px;">'+
+        (state.cooldownSkip ? icoCheck(t.accent) : '<span style="width:12px;height:12px;border-radius:3px;border:1px solid '+TEXT_DIM+';display:inline-block;"></span>')+
+        'SKIP</button></div>';
+      dayPlan.cooldown.forEach(function(e, idx){
+        var hasNote = !!state.notes[e.name];
+        html += '<div class="exline"><span>'+e.name+(hasNote?' <span class="note-indicator"></span>':'')+'</span>'+
+          '<span style="display:flex;align-items:center;gap:6px;">'+
+          '<span style="color:'+t.accent+';white-space:nowrap;">'+e.duration+'s</span>'+
+          '<button onclick="openNoteModal(\''+e.name.replace(/'/g,"\\'")+'\')" style="color:'+TEXT_DIM+';">'+icoNote(TEXT_DIM)+'</button>'+
+          '</span></div>';
+      });
+    }
     html += '</div>';
     var displayQ = state.warmupSkip ? buildQueueNoWarmup(state.selectedDay) : q;
     html += '<button class="bigbtn" onclick="startSession()" style="background:'+t.accent+';color:#02080a;box-shadow:0 0 24px '+t.glow+';">'+icoPlay("#02080a")+' INITIATE ('+displayQ.length+' STEPS)</button>';
@@ -1037,6 +1174,23 @@ function renderActive() {
     '</div>';
   }
 
+  /* PR badge â€” show after recording a set */
+  if (state.lastPR && state.lastPR.exercise === cur.name) {
+    html += '<div class="panel" style="width:100%;margin-top:16px;border-left:3px solid #ffd60a;background:rgba(255,214,10,0.08);">'+
+      '<div style="font-size:11px;color:#ffd60a;letter-spacing:1px;">'+icoFlame("#ffd60a",14)+' PERSONAL RECORD</div>'+
+      '<div style="font-size:13px;color:#dff3fb;margin-top:4px;">'+state.lastPR.type+'</div>'+
+    '</div>';
+  }
+
+  /* Adaptive rest label during rest phase */
+  if (state.phase === "rest") {
+    var adjLabel = getRestAdjLabel(cur.name);
+    if (adjLabel) {
+      var adjColor = adjLabel.startsWith("+") ? "#ff9500" : "#7fd88a";
+      html += '<div style="margin-top:10px;font-size:10px;letter-spacing:1px;color:'+adjColor+';">ADJUSTED REST: '+adjLabel+'</div>';
+    }
+  }
+
   /* Feature 3: Previous set recall on logSet */
   if (state.phase === "logSet") {
     var prev = lastSetLog(cur.name);
@@ -1121,6 +1275,25 @@ function renderComplete() {
   html += '<div class="statbox"><div class="statval" style="font-size:20px;color:#ff7b86;">'+failed+'</div><div class="statlabel dim">FAILED</div></div>';
   html += '<div class="statbox"><div class="statval" style="font-size:20px;">'+avgDiff+'</div><div class="statlabel dim">AVG DIFFICULTY</div></div>';
   html += '</div>';
+
+  /* PRs achieved this session */
+  var sessionPRs = [];
+  log.forEach(function(e){
+    var pr = state.personalRecords[e.exercise];
+    if (pr && pr.date === todayISO) {
+      var already = sessionPRs.some(function(p){ return p.exercise === e.exercise; });
+      if (!already) sessionPRs.push({ exercise: e.exercise, type: pr.bestReps != null ? "Best reps: " + pr.bestReps : "First log" });
+    }
+  });
+  if (sessionPRs.length > 0) {
+    html += '<div class="dim" style="font-size:9px;letter-spacing:1px;margin-top:14px;margin-bottom:8px;">'+icoFlame("#ffd60a",10)+' PERSONAL RECORDS</div>';
+    sessionPRs.forEach(function(pr){
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:11px;">'+
+        '<span style="color:#ffd60a;">'+pr.exercise+'</span>'+
+        '<span style="color:#cde3ec;">'+pr.type+'</span>'+
+      '</div>';
+    });
+  }
 
   if (log.length > 0) {
     html += '<div class="dim" style="font-size:9px;letter-spacing:1px;margin-top:14px;margin-bottom:8px;">SET BREAKDOWN</div>';
@@ -1315,6 +1488,19 @@ function renderStats() {
     } else {
       html += '<div class="panel" style="text-align:center;color:'+TEXT_DIM+';font-size:13px;padding:30px;">No exercises on rest days.</div>';
     }
+  }
+
+  /* PR Leaderboard */
+  var prKeys = Object.keys(state.personalRecords);
+  if (prKeys.length > 0) {
+    html += '<div class="panel" style="margin-bottom:16px;"><div class="dim" style="font-size:10px;letter-spacing:2px;margin-bottom:10px;">'+icoFlame("#ffd60a",10)+' PERSONAL RECORDS</div>';
+    prKeys.sort(function(a,b){ return (state.personalRecords[b].date||"").localeCompare(state.personalRecords[a].date||""); });
+    prKeys.forEach(function(name){
+      var pr = state.personalRecords[name];
+      var prType = pr.bestReps != null ? pr.bestReps + " reps" : "logged";
+      html += '<div class="exline"><span style="color:#ffd60a;">'+name+'</span><span class="dim" style="white-space:nowrap;">'+prType+' Â· '+pr.date+'</span></div>';
+    });
+    html += '</div>';
   }
 
   html += '<div style="display:flex;gap:10px;">'+

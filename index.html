@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -72,15 +72,15 @@ var THEMES = {
 var TEXT_DIM = "#6c8a99";
 
 /* ============================================================
-   WORKOUT DATA (base defaults â€” overridden per-exercise via state.overrides)
+   WORKOUT DATA (base defaults - overridden per-exercise via state.overrides)
    ============================================================ */
 var DAY_ORDER = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 function T(s){ return { type: "time", duration: s }; }
 function R(label){ return { type: "reps", label: label }; }
 
 var PLAN = {
-  Monday: { mode: "boulder", title: "BOULDERING", subtitle: "Primary pull/grip stimulus â€” log only" },
-  Sunday: { mode: "rest", title: "REST", subtitle: "Recovery day â€” no session" },
+  Monday: { mode: "boulder", title: "BOULDERING", subtitle: "Primary pull/grip stimulus - log only" },
+  Sunday: { mode: "rest", title: "REST", subtitle: "Recovery day - no session" },
   Tuesday: {
     mode: "session", title: "PUSH + HSPU",
     warmup: [
@@ -261,7 +261,7 @@ function buildQueueNoWarmup(day) {
 }
 
 /* ============================================================
-   STORAGE (localStorage â€” persists on this device/browser only)
+   STORAGE (localStorage - persists on this device/browser only)
    ============================================================ */
 var Storage = {
   get: function(key){ try { return localStorage.getItem(key); } catch(e){ return null; } },
@@ -269,7 +269,7 @@ var Storage = {
 };
 
 /* ============================================================
-   DAY COMPLETION % (drives the redâ†’green monthly gradient)
+   DAY COMPLETION % (drives the red->green monthly gradient)
    ============================================================ */
 function recordDayCompletion(dateISO, percent) {
   var cur = state.dayCompletion[dateISO] || 0;
@@ -326,7 +326,7 @@ function triggerAlert(freq, dur, pattern) {
 }
 
 /* ============================================================
-   WAKE LOCK â€” keeps screen on during an active session
+   WAKE LOCK - keeps screen on during an active session
    ============================================================ */
 var wakeLock = null;
 var wakeLockSupported = ("wakeLock" in navigator);
@@ -344,7 +344,7 @@ document.addEventListener("visibilitychange", function(){
 /* ============================================================
    HOME-SCREEN MANIFEST (nicer icon/standalone launch on "Add to Home Screen")
    Note: full install-prompt + offline caching needs HTTPS hosting for a
-   service worker â€” file:// can't run one. This just improves the manual
+   service worker - file:// can't run one. This just improves the manual
    "Add to Home Screen" result even for the local file.
    ============================================================ */
 (function attachManifest(){
@@ -371,7 +371,7 @@ if ("serviceWorker" in navigator) {
 }
 
 /* ============================================================
-   ICONS (inline SVG strings â€” no external icon library)
+   ICONS (inline SVG strings - no external icon library)
    ============================================================ */
 function icoPlay(c){ return '<svg width="18" height="18" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3" fill="'+c+'"/></svg>'; }
 function icoPause(c){ return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>'; }
@@ -541,15 +541,15 @@ function checkForPR(exerciseName, actualReps, difficulty) {
   var isPR = false;
   var prType = "";
   if (!prev) {
-    /* First time â€” any completion is a PR */
+    /* First time - any completion is a PR */
     isPR = true;
     prType = "FIRST LOG";
   } else if (actualReps != null && prev.bestReps != null && actualReps > prev.bestReps) {
     isPR = true;
-    prType = "REPS: " + prev.bestReps + " â†’ " + actualReps;
+    prType = "REPS: " + prev.bestReps + " -> " + actualReps;
   } else if (difficulty === "easy" && prev.lastDifficulty !== "easy") {
     isPR = true;
-    prType = "MASTERY: " + (prev.lastDifficulty || "unknown") + " â†’ EASY";
+    prType = "MASTERY: " + (prev.lastDifficulty || "unknown") + " -> EASY";
   }
   if (isPR) {
     state.personalRecords[exerciseName] = {
@@ -743,7 +743,7 @@ function restoreSession() {
   try {
     var data = JSON.parse(raw);
     if (!data.queue || data.stepIdx == null || !data.phase) return false;
-    /* Only restore sessions started today â€” stale ones get discarded */
+    /* Only restore sessions started today - stale ones get discarded */
     if (data.date !== todayISO) { Storage.set("active-session", ""); return false; }
     state.queue = data.queue;
     state.stepIdx = data.stepIdx;
@@ -776,10 +776,10 @@ var REST_TIPS = [
   "Stretching won't prevent soreness, but it maintains mobility between sessions.",
   "Hydration affects performance more than most supplements. Drink up.",
   "Your tendons recover slower than muscles. Rest days protect them.",
-  "Cold showers may reduce inflammation â€” but comfort is valid too.",
+  "Cold showers may reduce inflammation - but comfort is valid too.",
   "Meal prep on rest days. Good nutrition during the week starts here.",
   "Deload weeks every 4-6 weeks prevent burnout and overuse injuries.",
-  "Rest day â‰  do nothing. Foam rolling, light mobility, or a walk counts.",
+  "Rest day != do nothing. Foam rolling, light mobility, or a walk counts.",
   "Muscle is built during rest, not during the set. Respect the process.",
   "Stress raises cortisol, which slows recovery. Today is for decompression.",
   "Creatine works through saturation, not timing. Take it daily, even rest days.",
@@ -908,7 +908,7 @@ function handleImportFile(e) {
       render();
       alert("Import complete.");
     } catch (err) {
-      alert("Import failed â€” file was not valid backup JSON.");
+      alert("Import failed - file was not valid backup JSON.");
     }
   };
   reader.readAsText(file);
@@ -1020,18 +1020,18 @@ function renderOverview() {
   var html = '<div class="wrap">';
 
   if (!wakeLockSupported) {
-    html += '<div class="dim" style="font-size:10px;text-align:center;margin-bottom:10px;">âš  Screen wake-lock unsupported in this browser â€” increase your device auto-lock timeout for long sessions.</div>';
+    html += '<div class="dim" style="font-size:10px;text-align:center;margin-bottom:10px;">!! Screen wake-lock unsupported in this browser - increase your device auto-lock timeout for long sessions.</div>';
   }
 
   html += '<div style="position:relative;margin-bottom:16px;">'+
     '<button class="row panel" style="width:100%;padding:12px 14px;" onclick="toggleDayMenu()">'+
-      '<span style="font-size:12px;color:'+TEXT_DIM+'">'+(state.selectedDay===todayName?"TODAY":"OVERRIDE")+' Â· <span style="color:'+t.accent+'">'+state.selectedDay.toUpperCase()+'</span></span>'+
+      '<span style="font-size:12px;color:'+TEXT_DIM+'">'+(state.selectedDay===todayName?"TODAY":"OVERRIDE")+' - <span style="color:'+t.accent+'">'+state.selectedDay.toUpperCase()+'</span></span>'+
       icoChevron(t.accent)+
     '</button>';
   if (state.dayPickerOpen) {
     html += '<div class="day-menu" style="top:48px;left:0;right:0;">';
     DAY_ORDER.forEach(function(d){
-      html += '<button class="day-opt" onclick="selectDay(\''+d+'\')" style="width:100%;background:'+(d===state.selectedDay?'rgba(255,255,255,0.06)':'transparent')+';color:'+(d===todayName?t.accent:'#dff3fb')+';">'+d+(d===todayName?"  â€˘  TODAY":"")+'</button>';
+      html += '<button class="day-opt" onclick="selectDay(\''+d+'\')" style="width:100%;background:'+(d===state.selectedDay?'rgba(255,255,255,0.06)':'transparent')+';color:'+(d===todayName?t.accent:'#dff3fb')+';">'+d+(d===todayName?"  *  TODAY":"")+'</button>';
     });
     html += '</div>';
   }
@@ -1066,7 +1066,7 @@ function renderOverview() {
       var hasNote = !!state.notes[eff.name];
       html += '<div class="exline"><span>'+eff.name+(isOv?' <span style="color:'+t.accent+';">*</span>':'')+(hasNote?' <span class="note-indicator"></span>':'')+'</span>'+
         '<span style="display:flex;align-items:center;gap:6px;">'+
-        '<span style="color:'+t.accent+';white-space:nowrap;">'+eff.sets+' Ă— '+(eff.type==="time"?eff.duration+"s":eff.label)+'</span>'+
+        '<span style="color:'+t.accent+';white-space:nowrap;">'+eff.sets+' x '+(eff.type==="time"?eff.duration+"s":eff.label)+'</span>'+
         '<button onclick="openNoteModal(\''+eff.name.replace(/'/g,"\\'")+'\')" style="color:'+TEXT_DIM+';">'+icoNote(TEXT_DIM)+'</button>'+
         '<button onclick="openEditModal(\''+state.selectedDay+'\',\'MAIN\','+idx+')" style="color:'+TEXT_DIM+';">'+icoPencil(TEXT_DIM)+'</button>'+
         '</span></div>';
@@ -1155,7 +1155,7 @@ function renderActive() {
 
   var html = '<div class="wrap" style="display:flex;flex-direction:column;align-items:center;">';
   var percent = sessionProgressPercent();
-  html += '<div class="row" style="width:100%;margin-bottom:6px;"><span class="dim" style="font-size:10px;letter-spacing:1px;">'+cur.section+' Â· STEP '+(state.stepIdx+1)+'/'+total+'</span>'+
+  html += '<div class="row" style="width:100%;margin-bottom:6px;"><span class="dim" style="font-size:10px;letter-spacing:1px;">'+cur.section+' - STEP '+(state.stepIdx+1)+'/'+total+'</span>'+
     '<button onclick="exitSession()" style="color:'+TEXT_DIM+';">'+icoX(TEXT_DIM)+'</button></div>';
   html += '<div class="row" style="width:100%;margin-bottom:14px;"><span class="dim" style="font-size:10px;letter-spacing:1px;">SESSION PROGRESS</span>'+
     '<span class="hdr" style="font-size:13px;color:'+t.accent+';">'+percent+'%</span></div>';
@@ -1170,11 +1170,11 @@ function renderActive() {
     html += '<div class="panel" style="width:100%;margin-top:16px;border-left:3px solid '+t.accent+';">'+
       '<div class="dim" style="font-size:9px;letter-spacing:2px;margin-bottom:4px;">UP NEXT</div>'+
       '<div style="font-size:14px;color:#dff3fb;">'+next.name+'</div>'+
-      '<div style="font-size:11px;color:'+t.accent+';margin-top:2px;">SET '+(next.setIndex)+' / '+next.setTotal+' Â· '+(next.type==="time"?next.duration+"s":next.repsLabel)+'</div>'+
+      '<div style="font-size:11px;color:'+t.accent+';margin-top:2px;">SET '+(next.setIndex)+' / '+next.setTotal+' - '+(next.type==="time"?next.duration+"s":next.repsLabel)+'</div>'+
     '</div>';
   }
 
-  /* PR badge â€” show after recording a set */
+  /* PR badge - show after recording a set */
   if (state.lastPR && state.lastPR.exercise === cur.name) {
     html += '<div class="panel" style="width:100%;margin-top:16px;border-left:3px solid #ffd60a;background:rgba(255,214,10,0.08);">'+
       '<div style="font-size:11px;color:#ffd60a;letter-spacing:1px;">'+icoFlame("#ffd60a",14)+' PERSONAL RECORD</div>'+
@@ -1197,10 +1197,10 @@ function renderActive() {
     if (prev) {
       var diffColor = prev.difficulty==="easy"?"#7fd88a":prev.difficulty==="hard"?"#ffd60a":"#ff7b86";
       html += '<div class="panel" style="width:100%;margin-top:16px;border-left:3px solid '+diffColor+';">'+
-        '<div class="dim" style="font-size:9px;letter-spacing:2px;margin-bottom:4px;">LAST SET Â· '+prev.date+'</div>'+
+        '<div class="dim" style="font-size:9px;letter-spacing:2px;margin-bottom:4px;">LAST SET . '+prev.date+'</div>'+
         '<div style="font-size:13px;color:#dff3fb;">'+
           (prev.actualReps != null ? prev.actualReps + ' reps' : prev.section)+
-          ' Â· <span style="color:'+diffColor+';">'+prev.difficulty.toUpperCase()+'</span>'+
+          ' - <span style="color:'+diffColor+';">'+prev.difficulty.toUpperCase()+'</span>'+
         '</div>'+
       '</div>';
     }
@@ -1235,7 +1235,7 @@ function renderActive() {
   }
   html += '</div>';
   html += '<button onclick="exitSession()" style="margin-top:12px;width:100%;padding:12px;border-radius:12px;background:transparent;border:1px solid rgba(255,77,94,0.4);color:#ff7b86;font-size:12px;letter-spacing:1px;">'+
-    (percent >= 75 ? "FINISH EARLY (WILL COUNT Â· "+percent+"%)" : "FINISH EARLY (WON'T COUNT Â· "+percent+"%)")+
+    (percent >= 75 ? "FINISH EARLY (WILL COUNT - "+percent+"%)" : "FINISH EARLY (WON'T COUNT - "+percent+"%)")+
   '</button>';
   html += '</div>';
   return html;
@@ -1300,8 +1300,8 @@ function renderComplete() {
     log.forEach(function(e){
       var diffColor = e.difficulty==="easy"?"#7fd88a":e.difficulty==="hard"?"#ffd60a":"#ff7b86";
       html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:11px;">'+
-        '<span style="color:#cde3ec;">'+e.exercise+' Â· SET '+e.setIndex+'</span>'+
-        '<span style="color:'+diffColor+';">'+(e.actualReps != null ? e.actualReps+' reps Â· ':e.section+' Â· ')+e.difficulty.toUpperCase()+'</span>'+
+        '<span style="color:#cde3ec;">'+e.exercise+' - SET '+e.setIndex+'</span>'+
+        '<span style="color:'+diffColor+';">'+(e.actualReps != null ? e.actualReps+' reps - ':e.section+' - ')+e.difficulty.toUpperCase()+'</span>'+
       '</div>';
     });
   }
@@ -1388,7 +1388,7 @@ function renderStats() {
         ? 'border:1.5px dashed '+t.accentDim+';color:'+t.accentDim+';'
         : 'background:'+percentToColor(pct)+';box-shadow:0 0 5px rgba(0,0,0,0.4);color:#02080a;';
       var todayMark = iso === todayISO ? 'outline:2px solid '+t.accent+';outline-offset:1px;' : '';
-      html += '<div class="daycell" style="'+dayStyle+todayMark+'" title="'+iso+' Â· '+pct+'%">'+day+'</div>';
+      html += '<div class="daycell" style="'+dayStyle+todayMark+'" title="'+iso+' - '+pct+'%">'+day+'</div>';
     }
     html += '</div>';
     html += '<div class="row" style="font-size:9px;">'+
@@ -1472,17 +1472,17 @@ function renderStats() {
   if (state.statsTab === "exercise") {
     var dayPlan = PLAN[state.selectedDay];
     if (dayPlan.mode === "session") {
-      html += '<div class="panel" style="margin-bottom:16px;"><div class="dim" style="font-size:10px;letter-spacing:2px;margin-bottom:8px;">EXERCISE LOG Â· '+state.selectedDay.toUpperCase()+'</div>';
+      html += '<div class="panel" style="margin-bottom:16px;"><div class="dim" style="font-size:10px;letter-spacing:2px;margin-bottom:8px;">EXERCISE LOG . '+state.selectedDay.toUpperCase()+'</div>';
       dayPlan.main.forEach(function(e, idx){
         var eff = getEffective(state.selectedDay, "MAIN", idx);
         var rec = lastExerciseRecord(eff.name);
         var setLog = lastSetLog(eff.name);
         var extra = "";
         if (setLog) {
-          extra = " Â· " + (setLog.actualReps != null ? setLog.actualReps + " reps " : "") + setLog.difficulty.toUpperCase();
+          extra = " . " + (setLog.actualReps != null ? setLog.actualReps + " reps " : "") + setLog.difficulty.toUpperCase();
         }
         var hasNote = !!state.notes[eff.name];
-        html += '<div class="exline"><span>'+eff.name+(hasNote?' <span class="note-indicator"></span>':'')+'</span><span class="dim" style="white-space:nowrap;">'+(rec ? rec.date+" Â· "+rec.setsCompleted+"/"+rec.setsTotal+" sets"+extra : "no data yet")+'</span></div>';
+        html += '<div class="exline"><span>'+eff.name+(hasNote?' <span class="note-indicator"></span>':'')+'</span><span class="dim" style="white-space:nowrap;">'+(rec ? rec.date+" - "+rec.setsCompleted+"/"+rec.setsTotal+" sets"+extra : "no data yet")+'</span></div>';
       });
       html += '</div>';
     } else {
@@ -1498,7 +1498,7 @@ function renderStats() {
     prKeys.forEach(function(name){
       var pr = state.personalRecords[name];
       var prType = pr.bestReps != null ? pr.bestReps + " reps" : "logged";
-      html += '<div class="exline"><span style="color:#ffd60a;">'+name+'</span><span class="dim" style="white-space:nowrap;">'+prType+' Â· '+pr.date+'</span></div>';
+      html += '<div class="exline"><span style="color:#ffd60a;">'+name+'</span><span class="dim" style="white-space:nowrap;">'+prType+' - '+pr.date+'</span></div>';
     });
     html += '</div>';
   }

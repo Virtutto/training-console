@@ -4,6 +4,9 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Training Console</title>
+<meta name="theme-color" content="#03060a" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <link rel="manifest" id="manifestLink" />
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; padding: 0; }
@@ -329,6 +332,11 @@ document.addEventListener("visibilitychange", function(){
     document.getElementById("manifestLink").href = URL.createObjectURL(blob);
   } catch(e) {}
 })();
+
+/* Service Worker Registration for offline PWA */
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("./sw.js").catch(function(){});
+}
 
 /* ============================================================
    ICONS (inline SVG strings â€” no external icon library)

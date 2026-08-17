@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Training Console</title>
+<link rel="manifest" id="manifestLink" />
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; padding: 0; }
+  html, body { background: #03060a; }
+  body {
+    font-family: 'Courier New', Courier, monospace;
+    color: #dff3fb;
+    padding: 20px 16px 40px;
+    min-height: 100vh;
+    background: radial-gradient(ellipse at top, #061018 0%, #03060a 60%);
+    position: relative;
+  }
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background: repeating-linear-gradient(0deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 3px);
+  }
+  .hdr { font-family: Arial, sans-serif; font-weight: 900; letter-spacing: 3px; }
+  button { font-family: inherit; cursor: pointer; background: none; border: none; color: inherit; }
+  input { font-family: inherit; }
+  .wrap { position: relative; z-index: 1; max-width: 480px; margin: 0 auto; }
+  .panel { background: rgba(12,22,32,0.55); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 18px; }
+  .row { display: flex; justify-content: space-between; align-items: center; }
+  .dim { color: #6c8a99; }
+  .exline { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 12.5px; border-bottom: 1px solid rgba(255,255,255,0.04); gap: 8px; }
+  .iconbtn { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.08); }
+  .bigbtn { width: 100%; padding: 18px; border-radius: 12px; border: none; font-weight: 900; letter-spacing: 2px; font-family: Arial, sans-serif; display: flex; align-items: center; justify-content: center; gap: 10px; }
+  .ctrlbtn { flex: 1; padding: 14px; border-radius: 12px; background: rgba(12,22,32,0.55); border: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; }
+  .smallbtn { padding: 10px 12px; border-radius: 10px; background: rgba(12,22,32,0.55); border: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11px; }
+  .theme-menu, .day-menu { position: absolute; background: #0a1520; border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; z-index: 20; overflow: hidden; }
+  .theme-opt, .day-opt { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border-radius: 6px; font-size: 11px; text-align: left; }
+  .day-opt { padding: 10px 14px; font-size: 12px; }
+  .statgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+  .statbox { text-align: left; }
+  .statval { font-family: Arial, sans-serif; font-size: 22px; font-weight: 900; }
+  .statlabel { font-size: 9px; letter-spacing: 1px; margin-top: 2px; }
+  .dot { width: 26px; height: 26px; border-radius: 7px; background: rgba(255,255,255,0.06); }
+  .dot30 { width: 15px; height: 15px; border-radius: 4px; background: rgba(255,255,255,0.06); }
+  .daycell { width: 36px; height: 36px; border-radius: 6px; background: rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: center; font-size: 10px; color: #8da4b0; }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,4,8,0.75); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  input[type=number], input[type=text] { background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; color: #dff3fb; padding: 10px; font-size: 13px; width: 100%; }
+  label.fieldlabel { font-size: 10px; letter-spacing: 1px; color: #6c8a99; display: block; margin-bottom: 4px; }
+  textarea { background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; color: #dff3fb; padding: 10px; font-size: 13px; width: 100%; font-family: inherit; resize: vertical; min-height: 60px; }
+  .progress-track { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.06); overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+  .note-indicator { width: 6px; height: 6px; border-radius: 50%; background: #b48cff; display: inline-block; margin-left: 4px; }
+  svg { display: block; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<input type="file" id="importFileInput" accept="application/json" style="display:none" onchange="handleImportFile(event)" />
+<script>
+/* ============================================================
+   THEME
+   ============================================================ */
+var THEMES = {
+  cyan: { name: "HUD CYAN", accent: "#00e5ff", accentDim: "#0a8ba3", glow: "rgba(0,229,255,0.35)" },
+  amber: { name: "STARK AMBER", accent: "#ffb547", accentDim: "#a5722a", glow: "rgba(255,181,71,0.35)" },
+  crimson: { name: "RED ALERT", accent: "#ff4d5e", accentDim: "#a12b36", glow: "rgba(255,77,94,0.35)" },
+  matrix: { name: "MATRIX GREEN", accent: "#39ff88", accentDim: "#1f8a4c", glow: "rgba(57,255,136,0.35)" },
+  violet: { name: "VIOLET NEBULA", accent: "#b48cff", accentDim: "#6c4ba1", glow: "rgba(180,140,255,0.35)" }
+};
+var TEXT_DIM = "#6c8a99";
+
+/* ============================================================
+   WORKOUT DATA (base defaults â€” overridden per-exercise via state.overrides)
+   ============================================================ */
+var DAY_ORDER = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+function T(s){ return { type: "time", duration: s }; }
+function R(label){ return { type: "reps", label: label }; }
+
+var PLAN = {
+  Monday: { mode: "boulder", title: "BOULDERING", subtitle: "Primary pull/grip stimulus â€” log only" },
+  Sunday: { mode: "rest", title: "REST", subtitle: "Recovery day â€” no session" },
+  Tuesday: {
+    mode: "session", title: "PUSH + HSPU",
+    warmup: [
+      Object.assign({name:"Jump rope / jog in place"}, T(90)),
+      Object.assign({name:"Arm circles (fwd/back)"}, T(30)),
+      Object.assign({name:"Wrist circles + floor rock"}, T(60)),
+      Object.assign({name:"Scapular push-ups"}, R("10 reps")),
+      Object.assign({name:"Slow shoulder CARs"}, T(45)),
+      Object.assign({name:"Easy pike push-ups"}, R("5 reps"))
+    ],
+    main: [
+      Object.assign({name:"Wall handstand hold", sets:5, rest:165}, T(25)),
+      Object.assign({name:"Pike push-ups (elevated feet)", sets:4, rest:90}, R("6-8 reps")),
+      Object.assign({name:"Dip negatives (3-5s lower)", sets:4, rest:150}, R("5 reps")),
+      Object.assign({name:"Diamond push-ups", sets:3, rest:90}, R("MAX")),
+      Object.assign({name:"Hollow body hold", sets:3, rest:60}, T(25))
+    ]
+  },
+  Wednesday: {
+    mode: "session", title: "LEGS + CORE",
+    warmup: [
+      Object.assign({name:"Jog / jumping jacks"}, T(90)),
+      Object.assign({name:"Leg swings (front-back, side-side)"}, R("10 each leg")),
+      Object.assign({name:"Hip circles"}, T(45)),
+      Object.assign({name:"Bodyweight squats (slow)"}, R("10 reps")),
+      Object.assign({name:"Ankle circles"}, T(30)),
+      Object.assign({name:"Hollow hold (light)"}, T(15))
+    ],
+    main: [
+      Object.assign({name:"Bulgarian split squats", sets:3, rest:90}, R("8 / leg")),
+      Object.assign({name:"Pistol squat progression", sets:3, rest:120}, R("5 / leg")),
+      Object.assign({name:"Hanging knee raises", sets:4, rest:75}, R("10 reps")),
+      Object.assign({name:"Nordic curl negatives", sets:3, rest:150}, R("5 reps")),
+      Object.assign({name:"Plank", sets:3, rest:60}, T(40))
+    ]
+  },
+  Thursday: {
+    mode: "session", title: "PULL STRENGTH",
+    warmup: [
+      Object.assign({name:"Jump rope / jog in place"}, T(90)),
+      Object.assign({name:"Arm circles"}, T(30)),
+      Object.assign({name:"Band pull-aparts"}, R("15 reps")),
+      Object.assign({name:"Scapular pull-ups"}, R("10 reps")),
+      Object.assign({name:"Dead hang (light)"}, T(20)),
+      Object.assign({name:"Easy ring rows"}, R("5 reps"))
+    ],
+    main: [
+      Object.assign({name:"Band pull-up negatives (5s lower)", sets:5, rest:180}, R("4 reps")),
+      Object.assign({name:"Ring rows (feet elevated)", sets:4, rest:90}, R("8-10 reps")),
+      Object.assign({name:"Dip negatives / bench dips", sets:4, rest:150}, R("6 reps")),
+      Object.assign({name:"Scapular pull-ups", sets:3, rest:75}, R("8 reps")),
+      Object.assign({name:"Dead hang", sets:3, rest:90}, R("MAX"))
+    ]
+  },
+  Friday: {
+    mode: "session", title: "PUSH HYPERTROPHY + HSPU",
+    warmup: [
+      Object.assign({name:"Jump rope / jog in place"}, T(90)),
+      Object.assign({name:"Wrist circles + floor rock"}, T(60)),
+      Object.assign({name:"Scapular push-ups"}, R("10 reps")),
+      Object.assign({name:"Arm circles"}, T(30)),
+      Object.assign({name:"Easy dips (low depth)"}, R("5 reps")),
+      Object.assign({name:"Wall handstand touch"}, T(18))
+    ],
+    main: [
+      Object.assign({name:"Wall HSPU negatives", sets:4, rest:150}, R("3-5 reps")),
+      Object.assign({name:"Ring push-ups", sets:4, rest:90}, R("8-10 reps")),
+      Object.assign({name:"Dips (assisted if needed)", sets:4, rest:105}, R("6-8 reps")),
+      Object.assign({name:"Archer push-ups", sets:3, rest:90}, R("6 / side")),
+      Object.assign({name:"Hollow rocks", sets:3, rest:60}, R("12 reps"))
+    ]
+  },
+  Saturday: {
+    mode: "session", title: "PULL HYPERTROPHY + FRONT LEVER",
+    warmup: [
+      Object.assign({name:"Jump rope / jog in place"}, T(90)),
+      Object.assign({name:"Arm circles"}, T(30)),
+      Object.assign({name:"Band pull-aparts"}, R("15 reps")),
+      Object.assign({name:"Scapular pull-ups"}, R("10 reps")),
+      Object.assign({name:"Dead hang"}, T(20)),
+      Object.assign({name:"Tuck hold (very brief)"}, T(6))
+    ],
+    main: [
+      Object.assign({name:"Tuck front lever holds", sets:5, rest:150}, T(10)),
+      Object.assign({name:"Assisted pull-ups (band)", sets:4, rest:90}, R("6-8 reps")),
+      Object.assign({name:"Ring rows", sets:4, rest:90}, R("10-12 reps")),
+      Object.assign({name:"Australian pulls (elevated)", sets:3, rest:75}, R("10 reps")),
+      Object.assign({name:"Farmer carry / dead hang", sets:3, rest:90}, T(30))
+    ]
+  }
+};
+var WINDUP_SECONDS = 5;
+
+/* ============================================================
+   PER-EXERCISE OVERRIDES (persist forever until edited/reset)
+   ============================================================ */
+function overrideKey(day, section, idx){ return day + "|" + section + "|" + idx; }
+function getEffective(day, section, idx) {
+  var base = section === "WARMUP" ? PLAN[day].warmup[idx] : PLAN[day].main[idx];
+  var ov = state.overrides[overrideKey(day, section, idx)];
+  if (!ov) return base;
+  return Object.assign({}, base, ov);
+}
+
+function buildQueue(day) {
+  var plan = PLAN[day];
+  if (!plan || plan.mode !== "session") return [];
+  var queue = [];
+  function pushBlock(section, exercises) {
+    exercises.forEach(function(ex, idx) {
+      var eff = getEffective(day, section, idx);
+      var sets = eff.sets || 1;
+      for (var i = 0; i < sets; i++) {
+        queue.push({
+          section: section, name: eff.name, setIndex: i+1, setTotal: sets,
+          type: eff.type, duration: eff.duration, repsLabel: eff.label,
+          restAfter: eff.rest || 0
+        });
+      }
+    });
+  }
+  pushBlock("WARMUP", plan.warmup);
+  pushBlock("MAIN", plan.main);
+  return queue;
+}
+
+function buildQueueNoWarmup(day) {
+  var plan = PLAN[day];
+  if (!plan || plan.mode !== "session") return [];
+  var queue = [];
+  function pushBlock(section, exercises) {
+    exercises.forEach(function(ex, idx) {
+      var eff = getEffective(day, section, idx);
+      var sets = eff.sets || 1;
+      for (var i = 0; i < sets; i++) {
+        queue.push({
+          section: section, name: eff.name, setIndex: i+1, setTotal: sets,
+          type: eff.type, duration: eff.duration, repsLabel: eff.label,
+          restAfter: eff.rest || 0
+        });
+      }
+    });
+  }
+  pushBlock("MAIN", plan.main);
+  return queue;
+}
+
+/* ============================================================
+   STORAGE (localStorage â€” persists on this device/browser only)
+   ============================================================ */
+var Storage = {
+  get: function(key){ try { return localStorage.getItem(key); } catch(e){ return null; } },
+  set: function(key,val){ try { localStorage.setItem(key,val); return true; } catch(e){ return false; } }
+};
+
+/* ============================================================
+   DAY COMPLETION % (drives the redâ†’green monthly gradient)
+   ============================================================ */
+function recordDayCompletion(dateISO, percent) {
+  var cur = state.dayCompletion[dateISO] || 0;
+  state.dayCompletion[dateISO] = Math.max(cur, percent);
+  Storage.set("day-completion", JSON.stringify(state.dayCompletion));
+}
+function hexToRgb(hex) {
+  hex = hex.replace("#","");
+  return [parseInt(hex.slice(0,2),16), parseInt(hex.slice(2,4),16), parseInt(hex.slice(4,6),16)];
+}
+function lerp(a,b,t){ return Math.round(a + (b-a)*t); }
+function percentToColor(pct) {
+  pct = Math.max(0, Math.min(100, pct));
+  var stops = [
+    [0,   "#ff3b30"],  // red
+    [33,  "#ff9500"],  // orange
+    [66,  "#ffd60a"],  // yellow
+    [100, "#34c759"]   // green
+  ];
+  var lo = stops[0], hi = stops[stops.length-1];
+  for (var i = 0; i < stops.length - 1; i++) {
+    if (pct >= stops[i][0] && pct <= stops[i+1][0]) { lo = stops[i]; hi = stops[i+1]; break; }
+  }
+  var span = hi[0] - lo[0];
+  var t = span > 0 ? (pct - lo[0]) / span : 0;
+  var c1 = hexToRgb(lo[1]), c2 = hexToRgb(hi[1]);
+  var r = lerp(c1[0], c2[0], t), g = lerp(c1[1], c2[1], t), b = lerp(c1[2], c2[2], t);
+  return "rgb(" + r + "," + g + "," + b + ")";
+}
+
+/* ============================================================
+   SOUND + HAPTIC (respects alert mode: both | vibrate | silent)
+   ============================================================ */
+var audioCtx = null;
+function beep(freq, dur) {
+  freq = freq || 880; dur = dur || 0.15;
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    var osc = audioCtx.createOscillator(); var gain = audioCtx.createGain();
+    osc.type = "sine"; osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(); osc.stop(audioCtx.currentTime + dur);
+  } catch(e) {}
+}
+function vibrate(pattern) {
+  try { if (navigator.vibrate) navigator.vibrate(pattern || 200); } catch(e) {}
+}
+function triggerAlert(freq, dur, pattern) {
+  if (state.alertMode === "both") { beep(freq, dur); vibrate(pattern); }
+  else if (state.alertMode === "vibrate") { vibrate(pattern); }
+  /* silent: nothing */
+}
+
+/* ============================================================
+   WAKE LOCK â€” keeps screen on during an active session
+   ============================================================ */
+var wakeLock = null;
+var wakeLockSupported = ("wakeLock" in navigator);
+function requestWakeLock() {
+  if (!wakeLockSupported) return;
+  navigator.wakeLock.request("screen").then(function(lock){ wakeLock = lock; }).catch(function(){});
+}
+function releaseWakeLock() {
+  try { if (wakeLock) { wakeLock.release(); wakeLock = null; } } catch(e) {}
+}
+document.addEventListener("visibilitychange", function(){
+  if (document.visibilityState === "visible" && state && state.view === "active") requestWakeLock();
+});
+
+/* ============================================================
+   HOME-SCREEN MANIFEST (nicer icon/standalone launch on "Add to Home Screen")
+   Note: full install-prompt + offline caching needs HTTPS hosting for a
+   service worker â€” file:// can't run one. This just improves the manual
+   "Add to Home Screen" result even for the local file.
+   ============================================================ */
+(function attachManifest(){
+  try {
+    var iconSVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><rect width="192" height="192" fill="%2303060a"/><circle cx="96" cy="96" r="66" fill="none" stroke="%2300e5ff" stroke-width="10"/><circle cx="96" cy="96" r="34" fill="%2300e5ff"/></svg>';
+    var iconURI = "data:image/svg+xml," + iconSVG;
+    var manifest = {
+      name: "Training Console",
+      short_name: "Training",
+      start_url: ".",
+      display: "standalone",
+      background_color: "#03060a",
+      theme_color: "#03060a",
+      icons: [{ src: iconURI, sizes: "192x192", type: "image/svg+xml" }]
+    };
+    var blob = new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" });
+    document.getElementById("manifestLink").href = URL.createObjectURL(blob);
+  } catch(e) {}
+})();
+
+/* ============================================================
+   ICONS (inline SVG strings â€” no external icon library)
+   ============================================================ */
+function icoPlay(c){ return '<svg width="18" height="18" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3" fill="'+c+'"/></svg>'; }
+function icoPause(c){ return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>'; }
+function icoSkip(c){ return '<svg width="18" height="18" viewBox="0 0 24 24" stroke="'+c+'" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4" fill="'+c+'"/><line x1="19" y1="5" x2="19" y2="19"/></svg>'; }
+function icoCheck(c){ return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>'; }
+function icoX(c){ return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'; }
+function icoChart(c){ return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>'; }
+function icoFlame(c,size){ size=size||40; return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 24 24" fill="'+c+'" stroke="none"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>'; }
+function icoGear(c){ return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>'; }
+function icoChevron(c){ return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>'; }
+function icoPencil(c){ return '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>'; }
+function icoDownload(c){ return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'; }
+function icoUpload(c){ return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'; }
+function icoSmile(c){ return '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>'; }
+function icoNeutral(c){ return '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="8" y1="15" x2="16" y2="15"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>'; }
+function icoFrown(c){ return '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M16 16s-1.5-2-4-2-4 2-4 2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>'; }
+function icoNote(c){ return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>'; }
+function icoBookOpen(c){ return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>'; }
+function icoClock(c){ return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'; }
+
+/* ============================================================
+   STATE
+   ============================================================ */
+var todayName = DAY_ORDER[new Date().getDay()];
+var todayISO = new Date().toISOString().slice(0,10);
+var state = {
+  themeKey: "cyan",
+  alertMode: "both",
+  selectedDay: todayName,
+  dayPickerOpen: false,
+  themePickerOpen: false,
+  view: "overview",
+  queue: [],
+  stepIdx: 0,
+  phase: "windup",
+  secondsLeft: WINDUP_SECONDS,
+  paused: false,
+  history: [],
+  exerciseHistory: [],
+  setLogs: [],
+  dayCompletion: {},
+  overrides: {},
+  boulderLoggedToday: false,
+  editModal: null,
+  noteModal: null,
+  pendingSet: null,
+  phaseEndTime: null,
+  notes: {},
+  warmupSkip: false,
+  sessionLog: [],
+  sessionStartTime: null,
+  statsTab: "monthly",
+  statsMonthOffset: 0
+};
+(function loadAll(){
+  var raw = Storage.get("workout-history");
+  state.history = raw ? JSON.parse(raw) : [];
+  state.boulderLoggedToday = state.history.some(function(r){ return r.date === todayISO && r.type === "boulder"; });
+  var rawEx = Storage.get("exercise-history");
+  state.exerciseHistory = rawEx ? JSON.parse(rawEx) : [];
+  var rawOv = Storage.get("exercise-overrides");
+  state.overrides = rawOv ? JSON.parse(rawOv) : {};
+  var rawSetLogs = Storage.get("set-log");
+  state.setLogs = rawSetLogs ? JSON.parse(rawSetLogs) : [];
+  var rawDayComp = Storage.get("day-completion");
+  state.dayCompletion = rawDayComp ? JSON.parse(rawDayComp) : {};
+  var savedTheme = Storage.get("theme-key");
+  if (savedTheme && THEMES[savedTheme]) state.themeKey = savedTheme;
+  var savedAlert = Storage.get("alert-mode");
+  if (savedAlert === "both" || savedAlert === "vibrate" || savedAlert === "silent") state.alertMode = savedAlert;
+  var rawNotes = Storage.get("exercise-notes");
+  state.notes = rawNotes ? JSON.parse(rawNotes) : {};
+  var rawWarmupSkip = Storage.get("warmup-skip");
+  if (rawWarmupSkip === "true") state.warmupSkip = true;
+  restoreSession();
+})();
+
+var timerId = null;
+
+function saveHistory(nextArr) {
+  state.history = nextArr;
+  Storage.set("workout-history", JSON.stringify(nextArr));
+}
+function logCompletion(day, type) {
+  var record = { date: new Date().toISOString().slice(0,10), day: day, type: type, at: new Date().toISOString() };
+  saveHistory(state.history.concat([record]));
+}
+function recordExerciseHistory(day, cutoffIdx) {
+  var passed = state.queue.slice(0, cutoffIdx);
+  var byName = {};
+  passed.forEach(function(step){
+    if (step.section !== "MAIN") return;
+    if (!byName[step.name]) byName[step.name] = { count: 0, total: step.setTotal };
+    byName[step.name].count++;
+  });
+  var date = new Date().toISOString().slice(0,10);
+  var entries = state.exerciseHistory.slice();
+  Object.keys(byName).forEach(function(name){
+    entries.push({ date: date, day: day, exercise: name, setsCompleted: byName[name].count, setsTotal: byName[name].total });
+  });
+  state.exerciseHistory = entries;
+  Storage.set("exercise-history", JSON.stringify(entries));
+}
+function lastExerciseRecord(name) {
+  var recs = state.exerciseHistory.filter(function(r){ return r.exercise === name; });
+  if (!recs.length) return null;
+  recs.sort(function(a,b){ return a.date < b.date ? 1 : -1; });
+  return recs[0];
+}
+function lastSetLog(name) {
+  var recs = state.setLogs.filter(function(r){ return r.exercise === name; });
+  if (!recs.length) return null;
+  return recs[recs.length - 1];
+}
+
+function setLogsForDate(iso) {
+  return state.setLogs.filter(function(e){ return e.date === iso; });
+}
+function boulderLogsForDate(iso) {
+  return state.history.filter(function(r){ return r.date === iso && r.type === "boulder"; });
+}
+
+/* ============================================================
+   SESSION ENGINE
+   ============================================================ */
+function startSession() {
+  var q = state.warmupSkip ? buildQueueNoWarmup(state.selectedDay) : buildQueue(state.selectedDay);
+  if (q.length === 0) return;
+  state.queue = q; state.stepIdx = 0; state.phase = "windup"; state.paused = false;
+  state.sessionLog = [];
+  state.sessionStartTime = Date.now();
+  startTimedPhase(WINDUP_SECONDS);
+  state.view = "active";
+  requestWakeLock();
+  render();
+  runTimer();
+}
+function toggleWarmupSkip() {
+  state.warmupSkip = !state.warmupSkip;
+  Storage.set("warmup-skip", JSON.stringify(state.warmupSkip));
+  render();
+}
+function toggleBoulder() {
+  if (state.boulderLoggedToday) {
+    saveHistory(state.history.filter(function(r){ return !(r.date === todayISO && r.type === "boulder"); }));
+    state.boulderLoggedToday = false;
+  } else {
+    logCompletion(state.selectedDay, "boulder");
+    state.boulderLoggedToday = true;
+  }
+  render();
+}
+function currentStep() { return state.queue[state.stepIdx]; }
+function sessionProgressPercent() {
+  if (!state.queue.length) return 0;
+  return Math.round((state.stepIdx / state.queue.length) * 100);
+}
+
+function startTimedPhase(seconds) {
+  state.secondsLeft = seconds;
+  state.phaseEndTime = Date.now() + seconds * 1000;
+}
+function runTimer() {
+  clearTimeout(timerId);
+  if (state.view !== "active" || state.paused || state.phase === "awaitingFinish" || state.phase === "logSet") return;
+  /* Drift correction: recompute remaining from absolute wall-clock time */
+  if (state.phaseEndTime) {
+    var remaining = Math.ceil((state.phaseEndTime - Date.now()) / 1000);
+    if (remaining !== state.secondsLeft) {
+      state.secondsLeft = Math.max(0, remaining);
+      render();
+    }
+  }
+  if (state.secondsLeft <= 0) { advancePhase(); return; }
+  timerId = setTimeout(runTimer, 250);
+}
+function recordSetLog(difficulty) {
+  var cur = currentStep();
+  if (!cur) return;
+  var actualReps = null;
+  if (cur.type === "reps") {
+    var input = document.getElementById("actualRepsInput");
+    var v = input ? parseInt(input.value, 10) : NaN;
+    actualReps = isNaN(v) ? null : v;
+  }
+  var entry = {
+    date: new Date().toISOString().slice(0,10), day: state.selectedDay,
+    exercise: cur.name, section: cur.section, setIndex: cur.setIndex, setTotal: cur.setTotal,
+    type: cur.type, target: cur.type === "time" ? cur.duration : cur.repsLabel,
+    actualReps: actualReps, difficulty: difficulty
+  };
+  state.setLogs = state.setLogs.concat([entry]);
+  Storage.set("set-log", JSON.stringify(state.setLogs));
+  state.sessionLog.push(entry);
+  goToRestOrNext();
+}
+function advancePhase() {
+  var cur = currentStep();
+  if (!cur) return;
+  if (state.phase === "windup") {
+    triggerAlert(1046,0.2,150);
+    if (cur.type === "time") { state.phase = "work"; startTimedPhase(cur.duration); }
+    else { state.phase = "awaitingFinish"; state.phaseEndTime = null; }
+    render(); runTimer();
+    return;
+  }
+  if (state.phase === "work") { triggerAlert(660,0.25,[150,80,150]); state.phase = "logSet"; state.phaseEndTime = null; render(); return; }
+  if (state.phase === "rest") { triggerAlert(1046,0.2,100); goToNextStep(); return; }
+}
+function finishReps() { triggerAlert(660,0.25,[150,80,150]); state.phase = "logSet"; render(); }
+function goToRestOrNext() {
+  var cur = currentStep();
+  var rest = cur.restAfter || 0;
+  var isLast = state.stepIdx >= state.queue.length - 1;
+  if (rest > 0 && !isLast) { state.phase = "rest"; startTimedPhase(rest); render(); runTimer(); }
+  else { goToNextStep(); }
+}
+function goToNextStep() {
+  if (state.stepIdx >= state.queue.length - 1) {
+    logCompletion(state.selectedDay, "workout");
+    recordExerciseHistory(state.selectedDay, state.queue.length);
+    recordDayCompletion(new Date().toISOString().slice(0,10), 100);
+    releaseWakeLock();
+    state.view = "complete";
+    Storage.set("active-session", "");
+    render();
+    return;
+  }
+  state.stepIdx += 1; state.phase = "windup";
+  startTimedPhase(WINDUP_SECONDS);
+  render(); runTimer();
+}
+function skipPhase() { state.secondsLeft = 0; state.phaseEndTime = null; render(); runTimer(); }
+function togglePause() {
+  state.paused = !state.paused;
+  if (!state.paused && state.phaseEndTime && state.secondsLeft > 0) {
+    state.phaseEndTime = Date.now() + state.secondsLeft * 1000;
+  }
+  render(); runTimer();
+}
+function exitSession() {
+  clearTimeout(timerId);
+  var percent = sessionProgressPercent();
+  if (state.queue.length > 0) {
+    recordDayCompletion(new Date().toISOString().slice(0,10), percent);
+    if (percent >= 75) {
+      logCompletion(state.selectedDay, "workout");
+      recordExerciseHistory(state.selectedDay, state.stepIdx);
+    }
+  }
+  releaseWakeLock();
+  state.view = "overview";
+  Storage.set("active-session", "");
+  render();
+}
+function returnFromComplete() { state.view = "overview"; Storage.set("active-session", ""); render(); }
+
+/* ============================================================
+   SESSION PERSISTENCE (survives tab close / browser restart)
+   ============================================================ */
+function saveSessionState() {
+  if (state.view !== "active") {
+    try { Storage.set("active-session", ""); } catch(e) {}
+    return;
+  }
+  var data = {
+    queue: state.queue,
+    stepIdx: state.stepIdx,
+    phase: state.phase,
+    phaseEndTime: state.phaseEndTime,
+    secondsLeft: state.secondsLeft,
+    paused: state.paused,
+    selectedDay: state.selectedDay,
+    date: todayISO,
+    sessionLog: state.sessionLog || [],
+    sessionStartTime: state.sessionStartTime
+  };
+  try { Storage.set("active-session", JSON.stringify(data)); } catch(e) {}
+}
+function restoreSession() {
+  var raw;
+  try { raw = Storage.get("active-session"); } catch(e) { return false; }
+  if (!raw) return false;
+  try {
+    var data = JSON.parse(raw);
+    if (!data.queue || data.stepIdx == null || !data.phase) return false;
+    /* Only restore sessions started today â€” stale ones get discarded */
+    if (data.date !== todayISO) { Storage.set("active-session", ""); return false; }
+    state.queue = data.queue;
+    state.stepIdx = data.stepIdx;
+    state.phase = data.phase;
+    state.paused = data.paused || false;
+    state.selectedDay = data.selectedDay;
+    state.view = "active";
+    state.sessionLog = data.sessionLog || [];
+    state.sessionStartTime = data.sessionStartTime || null;
+    if (!data.paused && data.phaseEndTime) {
+      var remaining = Math.ceil((data.phaseEndTime - Date.now()) / 1000);
+      state.secondsLeft = Math.max(0, remaining);
+      state.phaseEndTime = data.phaseEndTime;
+    } else {
+      state.secondsLeft = data.secondsLeft || WINDUP_SECONDS;
+      state.phaseEndTime = null;
+    }
+    requestWakeLock();
+    return true;
+  } catch(e) { return false; }
+}
+
+/* ============================================================
+   REST DAY TIPS (seeded by date for consistency)
+   ============================================================ */
+var REST_TIPS = [
+  "Sleep is when muscle is built. Aim for 7-9 hours tonight.",
+  "Protein timing matters less than total daily intake. Hit 1.6-2.2g/kg today.",
+  "Light walking on rest days improves recovery more than sitting still.",
+  "Stretching won't prevent soreness, but it maintains mobility between sessions.",
+  "Hydration affects performance more than most supplements. Drink up.",
+  "Your tendons recover slower than muscles. Rest days protect them.",
+  "Cold showers may reduce inflammation â€” but comfort is valid too.",
+  "Meal prep on rest days. Good nutrition during the week starts here.",
+  "Deload weeks every 4-6 weeks prevent burnout and overuse injuries.",
+  "Rest day â‰  do nothing. Foam rolling, light mobility, or a walk counts.",
+  "Muscle is built during rest, not during the set. Respect the process.",
+  "Stress raises cortisol, which slows recovery. Today is for decompression.",
+  "Creatine works through saturation, not timing. Take it daily, even rest days.",
+  "Journaling your session logs on rest days helps you spot patterns.",
+  "A rest day skipped today is an injury earned tomorrow."
+];
+function getRestTip() {
+  var seed = 0;
+  for (var i = 0; i < todayISO.length; i++) seed += todayISO.charCodeAt(i);
+  return REST_TIPS[seed % REST_TIPS.length];
+}
+
+/* ============================================================
+   NOTE MODAL (per-exercise notes)
+   ============================================================ */
+function openNoteModal(name) { state.noteModal = { name: name, value: state.notes[name] || "" }; render(); }
+function closeNoteModal() { state.noteModal = null; render(); }
+function saveNoteModal() {
+  var m = state.noteModal; if (!m) return;
+  var val = document.getElementById("noteInput").value.trim();
+  if (val) { state.notes[m.name] = val; }
+  else { delete state.notes[m.name]; }
+  Storage.set("exercise-notes", JSON.stringify(state.notes));
+  state.noteModal = null;
+  render();
+}
+function renderNoteModal() {
+  var t = theme();
+  var m = state.noteModal;
+  if (!m) return '';
+  return '<div class="modal-overlay" onclick="if(event.target===this) closeNoteModal()">'+
+    '<div class="panel" style="width:100%;max-width:380px;">'+
+      '<div class="hdr" style="font-size:15px;color:'+t.accent+';margin-bottom:4px;">'+icoNote(t.accent)+' NOTES</div>'+
+      '<div class="dim" style="font-size:11px;margin-bottom:12px;">'+m.name+'</div>'+
+      '<textarea id="noteInput" rows="4" placeholder="Form cues, equipment, reminders...">'+m.value+'</textarea>'+
+      '<div style="display:flex;gap:10px;margin-top:14px;">'+
+        '<button class="ctrlbtn" onclick="closeNoteModal()">CANCEL</button>'+
+        '<button class="ctrlbtn" onclick="saveNoteModal()" style="background:'+t.accent+';color:#02080a;">SAVE</button>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+}
+
+/* ============================================================
+   EDIT MODAL (persistent per-exercise overrides)
+   ============================================================ */
+function openEditModal(day, section, idx) { state.editModal = { day: day, section: section, idx: idx }; render(); }
+function closeEditModal() { state.editModal = null; render(); }
+function saveEditModal() {
+  var m = state.editModal; if (!m) return;
+  var eff = getEffective(m.day, m.section, m.idx);
+  var setsVal = parseInt(document.getElementById("editSetsInput").value, 10);
+  var restVal = parseInt(document.getElementById("editRestInput").value, 10);
+  var patch = {};
+  patch.sets = isNaN(setsVal) || setsVal < 1 ? eff.sets : setsVal;
+  patch.rest = isNaN(restVal) || restVal < 0 ? eff.rest : restVal;
+  if (eff.type === "time") {
+    var durVal = parseInt(document.getElementById("editValueInput").value, 10);
+    patch.duration = isNaN(durVal) || durVal < 1 ? eff.duration : durVal;
+  } else {
+    var labelVal = document.getElementById("editValueInput").value.trim();
+    patch.label = labelVal || eff.label;
+  }
+  var key = overrideKey(m.day, m.section, m.idx);
+  state.overrides[key] = Object.assign({}, state.overrides[key] || {}, patch);
+  Storage.set("exercise-overrides", JSON.stringify(state.overrides));
+  state.editModal = null;
+  render();
+}
+function resetEditModal() {
+  var m = state.editModal; if (!m) return;
+  var key = overrideKey(m.day, m.section, m.idx);
+  delete state.overrides[key];
+  Storage.set("exercise-overrides", JSON.stringify(state.overrides));
+  state.editModal = null;
+  render();
+}
+
+/* ============================================================
+   EXPORT / IMPORT
+   ============================================================ */
+function exportData() {
+  var payload = JSON.stringify({
+    history: state.history,
+    exerciseHistory: state.exerciseHistory,
+    setLogs: state.setLogs,
+    dayCompletion: state.dayCompletion,
+    overrides: state.overrides,
+    alertMode: state.alertMode,
+    themeKey: state.themeKey,
+    notes: state.notes,
+    warmupSkip: state.warmupSkip,
+    exportedAt: new Date().toISOString()
+  }, null, 2);
+  var blob = new Blob([payload], { type: "application/json" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url; a.download = "training-console-backup-" + todayISO + ".json";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function triggerImport() { document.getElementById("importFileInput").click(); }
+function handleImportFile(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(evt) {
+    try {
+      var data = JSON.parse(evt.target.result);
+      if (Array.isArray(data.history)) saveHistory(data.history);
+      if (Array.isArray(data.exerciseHistory)) { state.exerciseHistory = data.exerciseHistory; Storage.set("exercise-history", JSON.stringify(data.exerciseHistory)); }
+      if (Array.isArray(data.setLogs)) { state.setLogs = data.setLogs; Storage.set("set-log", JSON.stringify(data.setLogs)); }
+      if (data.dayCompletion) { state.dayCompletion = data.dayCompletion; Storage.set("day-completion", JSON.stringify(data.dayCompletion)); }
+      if (data.overrides) { state.overrides = data.overrides; Storage.set("exercise-overrides", JSON.stringify(data.overrides)); }
+      if (data.alertMode) { state.alertMode = data.alertMode; Storage.set("alert-mode", data.alertMode); }
+      if (data.themeKey && THEMES[data.themeKey]) { state.themeKey = data.themeKey; Storage.set("theme-key", data.themeKey); }
+      if (data.notes) { state.notes = data.notes; Storage.set("exercise-notes", JSON.stringify(data.notes)); }
+      if (data.warmupSkip != null) { state.warmupSkip = !!data.warmupSkip; Storage.set("warmup-skip", JSON.stringify(state.warmupSkip)); }
+      state.boulderLoggedToday = state.history.some(function(r){ return r.date === todayISO && r.type === "boulder"; });
+      render();
+      alert("Import complete.");
+    } catch (err) {
+      alert("Import failed â€” file was not valid backup JSON.");
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = "";
+}
+
+/* ============================================================
+   STATS
+   ============================================================ */
+function computeStats() {
+  var last7 = [];
+  for (var i = 6; i >= 0; i--) {
+    var d = new Date(); d.setDate(d.getDate() - i);
+    var iso = d.toISOString().slice(0,10);
+    var dName = DAY_ORDER[d.getDay()];
+    var isRestDay = PLAN[dName].mode === "rest";
+    var hasLog = state.history.some(function(r){ return r.date === iso; });
+    last7.push({ iso: iso, active: hasLog || isRestDay, isRestDay: isRestDay });
+  }
+  var last30 = [];
+  for (var k = 29; k >= 0; k--) {
+    var d2 = new Date(); d2.setDate(d2.getDate() - k);
+    var iso2 = d2.toISOString().slice(0,10);
+    var dName2 = DAY_ORDER[d2.getDay()];
+    var mode2 = PLAN[dName2].mode;
+    var isRestDay2 = mode2 === "rest";
+    var pct2;
+    if (mode2 === "boulder") {
+      pct2 = state.history.some(function(r){ return r.date === iso2 && r.type === "boulder"; }) ? 100 : 0;
+    } else if (mode2 === "rest") {
+      pct2 = 100;
+    } else {
+      pct2 = state.dayCompletion[iso2] || 0;
+    }
+    last30.push({ iso: iso2, isRestDay: isRestDay2, percent: pct2 });
+  }
+  var totalSessions = state.history.filter(function(r){ return r.type === "workout"; }).length;
+  var totalBoulder = state.history.filter(function(r){ return r.type === "boulder"; }).length;
+  var thisWeekCount = last7.filter(function(d){ return d.active && !d.isRestDay; }).length;
+  var streak = 0;
+  for (var j = last7.length - 1; j >= 0; j--) { if (last7[j].active) streak++; else break; }
+  return { last7: last7, last30: last30, totalSessions: totalSessions, totalBoulder: totalBoulder, thisWeekCount: thisWeekCount, streak: streak };
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+function theme() { return THEMES[state.themeKey]; }
+
+function ringSVG(progress, colorAccent, glow, size, stroke, innerHTML) {
+  size = size || 240; stroke = stroke || 10;
+  var r = (size - stroke) / 2;
+  var c = 2 * Math.PI * r;
+  var offset = c * (1 - progress);
+  var ticks = "";
+  for (var i = 0; i < 60; i++) {
+    var angle = (i/60) * 360;
+    var major = i % 5 === 0;
+    var rad = angle * Math.PI / 180;
+    var x1 = size/2 + (r+stroke/2+2)*Math.cos(rad), y1 = size/2 + (r+stroke/2+2)*Math.sin(rad);
+    var x2 = size/2 + (r+stroke/2+(major?8:4))*Math.cos(rad), y2 = size/2 + (r+stroke/2+(major?8:4))*Math.sin(rad);
+    ticks += '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+colorAccent+'" stroke-width="'+(major?2:1)+'" opacity="0.5"/>';
+  }
+  return '<div style="position:relative;width:'+size+'px;height:'+size+'px;margin:0 auto;">'+
+    '<svg width="'+size+'" height="'+size+'" style="transform:rotate(-90deg)">'+
+      '<circle cx="'+size/2+'" cy="'+size/2+'" r="'+r+'" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="'+stroke+'"/>'+
+      ticks+
+      '<circle cx="'+size/2+'" cy="'+size/2+'" r="'+r+'" fill="none" stroke="'+colorAccent+'" stroke-width="'+stroke+'" stroke-dasharray="'+c+'" stroke-dashoffset="'+offset+'" stroke-linecap="round" style="filter:drop-shadow(0 0 8px '+glow+');transition:stroke-dashoffset 1s linear"/>'+
+    '</svg>'+
+    '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;">'+innerHTML+'</div>'+
+  '</div>';
+}
+
+function renderHeader() {
+  var t = theme();
+  var statsBtn = state.view !== "active" ?
+    '<button class="iconbtn" onclick="toggleStats()" style="background:'+(state.view==='stats'?t.glow:'rgba(12,22,32,0.55)')+';border-color:'+(state.view==='stats'?t.accent:'rgba(255,255,255,0.08)')+';color:'+t.accent+'">'+icoChart(t.accent)+'</button>' : '';
+  return '<div class="wrap row" style="margin-bottom:18px;flex-wrap:wrap;gap:10px;position:relative;z-index:50;">'+
+    '<div><div class="hdr" style="font-size:12px;letter-spacing:3px;color:'+t.accent+';text-shadow:0 0 10px '+t.glow+'">TRAINING PROTOCOL</div>'+
+    '<div class="dim" style="font-size:11px;margin-top:2px;">'+new Date().toDateString().toUpperCase()+'</div></div>'+
+    '<div style="display:flex;gap:8px;position:relative;">'+
+      statsBtn+
+      '<button class="iconbtn" onclick="toggleThemeMenu(event)" style="background:'+(state.themePickerOpen?t.glow:'rgba(12,22,32,0.55)')+';border-color:'+(state.themePickerOpen?t.accent:'rgba(255,255,255,0.08)')+';color:'+t.accent+'">'+icoGear(t.accent)+'</button>'+
+      (state.themePickerOpen ? renderSettingsMenu() : '')+
+    '</div>'+
+  '</div>';
+}
+function renderSettingsMenu() {
+  var t = theme();
+  var html = '<div class="theme-menu" style="right:0;top:42px;padding:8px;min-width:190px;">';
+  html += '<div class="dim" style="font-size:9px;letter-spacing:1px;padding:4px 10px;">THEME</div>';
+  Object.keys(THEMES).forEach(function(k){
+    var tk = THEMES[k];
+    html += '<button class="theme-opt" onclick="selectTheme(\''+k+'\')" style="background:'+(k===state.themeKey?'rgba(255,255,255,0.06)':'transparent')+';color:#dff3fb;">'+
+      '<span style="width:10px;height:10px;border-radius:50%;background:'+tk.accent+';box-shadow:0 0 6px '+tk.accent+';display:inline-block;"></span>'+tk.name+'</button>';
+  });
+  html += '<div class="dim" style="font-size:9px;letter-spacing:1px;padding:8px 10px 4px;border-top:1px solid rgba(255,255,255,0.06);margin-top:6px;">ALERTS</div>';
+  var modes = [["both","SOUND + VIBRATE"],["vibrate","VIBRATE ONLY"],["silent","SILENT"]];
+  modes.forEach(function(m){
+    html += '<button class="theme-opt" onclick="selectAlertMode(\''+m[0]+'\')" style="background:'+(m[0]===state.alertMode?'rgba(255,255,255,0.06)':'transparent')+';color:'+(m[0]===state.alertMode?t.accent:'#dff3fb')+';">'+m[1]+'</button>';
+  });
+  return html + '</div>';
+}
+
+function renderOverview() {
+  var t = theme();
+  var dayPlan = PLAN[state.selectedDay];
+  var q = buildQueue(state.selectedDay);
+  var html = '<div class="wrap">';
+
+  if (!wakeLockSupported) {
+    html += '<div class="dim" style="font-size:10px;text-align:center;margin-bottom:10px;">âš  Screen wake-lock unsupported in this browser â€” increase your device auto-lock timeout for long sessions.</div>';
+  }
+
+  html += '<div style="position:relative;margin-bottom:16px;">'+
+    '<button class="row panel" style="width:100%;padding:12px 14px;" onclick="toggleDayMenu()">'+
+      '<span style="font-size:12px;color:'+TEXT_DIM+'">'+(state.selectedDay===todayName?"TODAY":"OVERRIDE")+' Â· <span style="color:'+t.accent+'">'+state.selectedDay.toUpperCase()+'</span></span>'+
+      icoChevron(t.accent)+
+    '</button>';
+  if (state.dayPickerOpen) {
+    html += '<div class="day-menu" style="top:48px;left:0;right:0;">';
+    DAY_ORDER.forEach(function(d){
+      html += '<button class="day-opt" onclick="selectDay(\''+d+'\')" style="width:100%;background:'+(d===state.selectedDay?'rgba(255,255,255,0.06)':'transparent')+';color:'+(d===todayName?t.accent:'#dff3fb')+';">'+d+(d===todayName?"  â€˘  TODAY":"")+'</button>';
+    });
+    html += '</div>';
+  }
+  html += '</div>';
+
+  html += '<div class="panel" style="margin-bottom:16px;text-align:center;">'+
+    '<div class="hdr" style="font-size:22px;color:'+t.accent+';text-shadow:0 0 12px '+t.glow+';">'+dayPlan.title+'</div>'+
+    (dayPlan.subtitle ? '<div class="dim" style="font-size:12px;margin-top:6px;">'+dayPlan.subtitle+'</div>' : '')+
+  '</div>';
+
+  if (dayPlan.mode === "session") {
+    html += '<div class="panel" style="margin-bottom:16px;">';
+    html += '<div class="row" style="margin-bottom:8px;"><div class="dim" style="font-size:10px;letter-spacing:2px;">WARMUP</div>'+
+      '<button onclick="toggleWarmupSkip()" style="font-size:10px;letter-spacing:1px;color:'+(state.warmupSkip?t.accent:TEXT_DIM)+';display:flex;align-items:center;gap:5px;">'+
+      (state.warmupSkip ? icoCheck(t.accent) : '<span style="width:12px;height:12px;border-radius:3px;border:1px solid '+TEXT_DIM+';display:inline-block;"></span>')+
+      'SKIP</button></div>';
+    dayPlan.warmup.forEach(function(e, idx){
+      var eff = getEffective(state.selectedDay, "WARMUP", idx);
+      var isOv = !!state.overrides[overrideKey(state.selectedDay, "WARMUP", idx)];
+      var hasNote = !!state.notes[eff.name];
+      html += '<div class="exline"><span>'+eff.name+(isOv?' <span style="color:'+t.accent+';">*</span>':'')+(hasNote?' <span class="note-indicator"></span>':'')+'</span>'+
+        '<span style="display:flex;align-items:center;gap:6px;">'+
+        '<span style="color:'+t.accent+';white-space:nowrap;">'+(eff.type==="time"?eff.duration+"s":eff.label)+'</span>'+
+        '<button onclick="openNoteModal(\''+eff.name.replace(/'/g,"\\'")+'\')" style="color:'+TEXT_DIM+';">'+icoNote(TEXT_DIM)+'</button>'+
+        '<button onclick="openEditModal(\''+state.selectedDay+'\',\'WARMUP\','+idx+')" style="color:'+TEXT_DIM+';">'+icoPencil(TEXT_DIM)+'</button>'+
+        '</span></div>';
+    });
+    html += '<div class="dim" style="font-size:10px;letter-spacing:2px;margin:14px 0 8px;">MAIN</div>';
+    dayPlan.main.forEach(function(e, idx){
+      var eff = getEffective(state.selectedDay, "MAIN", idx);
+      var isOv = !!state.overrides[overrideKey(state.selectedDay, "MAIN", idx)];
+      var hasNote = !!state.notes[eff.name];
+      html += '<div class="exline"><span>'+eff.name+(isOv?' <span style="color:'+t.accent+';">*</span>':'')+(hasNote?' <span class="note-indicator"></span>':'')+'</span>'+
+        '<span style="display:flex;align-items:center;gap:6px;">'+
+        '<span style="color:'+t.accent+';white-space:nowrap;">'+eff.sets+' Ă— '+(eff.type==="time"?eff.duration+"s":eff.label)+'</span>'+
+        '<button onclick="openNoteModal(\''+eff.name.replace(/'/g,"\\'")+'\')" style="color:'+TEXT_DIM+';">'+icoNote(TEXT_DIM)+'</button>'+
+        '<button onclick="openEditModal(\''+state.selectedDay+'\',\'MAIN\','+idx+')" style="color:'+TEXT_DIM+';">'+icoPencil(TEXT_DIM)+'</button>'+
+        '</span></div>';
+    });
+    html += '</div>';
+    var displayQ = state.warmupSkip ? buildQueueNoWarmup(state.selectedDay) : q;
+    html += '<button class="bigbtn" onclick="startSession()" style="background:'+t.accent+';color:#02080a;box-shadow:0 0 24px '+t.glow+';">'+icoPlay("#02080a")+' INITIATE ('+displayQ.length+' STEPS)</button>';
+  } else if (dayPlan.mode === "boulder") {
+    html += '<button style="width:100%;padding:20px;border-radius:12px;background:'+(state.boulderLoggedToday?t.glow:'rgba(12,22,32,0.55)')+';border:1px solid '+(state.boulderLoggedToday?t.accent:'rgba(255,255,255,0.08)')+';color:#dff3fb;display:flex;align-items:center;justify-content:center;gap:10px;font-size:14px;" onclick="toggleBoulder()">'+
+      (state.boulderLoggedToday ? icoCheck(t.accent) : '<span style="width:18px;height:18px;border-radius:4px;border:1px solid '+TEXT_DIM+';display:inline-block;"></span>')+
+      (state.boulderLoggedToday ? "SESSION LOGGED" : "MARK BOULDERING COMPLETE")+
+    '</button>';
+  } else {
+    html += '<div class="panel" style="text-align:center;">'+
+      '<div style="color:'+t.accent+';font-size:11px;letter-spacing:2px;margin-bottom:8px;">'+icoBookOpen(t.accent)+' REST DAY TIP</div>'+
+      '<div style="color:#cde3ec;font-size:13px;line-height:1.5;font-style:italic;">"'+getRestTip()+'"</div>'+
+      '<div class="dim" style="font-size:11px;margin-top:10px;">Recovery is part of the protocol.</div>'+
+    '</div>';
+  }
+
+  html += '</div>';
+  if (state.editModal) html += renderEditModal();
+  return html;
+}
+
+function renderEditModal() {
+  var t = theme();
+  var m = state.editModal;
+  var eff = getEffective(m.day, m.section, m.idx);
+  var isOv = !!state.overrides[overrideKey(m.day, m.section, m.idx)];
+  var valueField = eff.type === "time"
+    ? '<label class="fieldlabel">DURATION (SECONDS)</label><input type="number" id="editValueInput" value="'+eff.duration+'" min="1" />'
+    : '<label class="fieldlabel">TARGET (TEXT, e.g. "8-10 reps" or "MAX")</label><input type="text" id="editValueInput" value="'+eff.label+'" />';
+  return '<div class="modal-overlay" onclick="if(event.target===this) closeEditModal()">'+
+    '<div class="panel" style="width:100%;max-width:380px;">'+
+      '<div class="hdr" style="font-size:15px;color:'+t.accent+';margin-bottom:4px;">'+eff.name+'</div>'+
+      '<div class="dim" style="font-size:10px;margin-bottom:16px;">Changes apply to every future '+m.day+' session, not just today.</div>'+
+      '<div style="margin-bottom:12px;"><label class="fieldlabel">SETS</label><input type="number" id="editSetsInput" value="'+eff.sets+'" min="1" /></div>'+
+      '<div style="margin-bottom:12px;">'+valueField+'</div>'+
+      '<div style="margin-bottom:18px;"><label class="fieldlabel">REST (SECONDS)</label><input type="number" id="editRestInput" value="'+(eff.rest||0)+'" min="0" /></div>'+
+      '<div style="display:flex;gap:10px;">'+
+        '<button class="ctrlbtn" onclick="closeEditModal()">CANCEL</button>'+
+        (isOv ? '<button class="ctrlbtn" onclick="resetEditModal()" style="color:#ff7b86;">RESET</button>' : '')+
+        '<button class="ctrlbtn" onclick="saveEditModal()" style="background:'+t.accent+';color:#02080a;">SAVE</button>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+}
+
+function renderActive() {
+  var t = theme();
+  var cur = currentStep();
+  if (!cur) return '';
+  var total = state.queue.length;
+  var label = state.phase==="windup" ? "GET READY" : state.phase==="work" ? (cur.type==="time"?"HOLD / GO":"WORKING") : state.phase==="rest" ? "REST" : "YOUR CALL";
+  var ringMax = state.phase==="windup" ? WINDUP_SECONDS : state.phase==="work" ? cur.duration : state.phase==="rest" ? cur.restAfter : 1;
+  var progress = (state.phase==="awaitingFinish" || state.phase==="logSet") ? 1 : (ringMax>0 ? 1-(state.secondsLeft/ringMax) : 1);
+  progress = Math.min(Math.max(progress,0),1);
+  var ringAccent = state.phase==="rest" ? "#7fd88a" : t.accent;
+  var ringGlow = state.phase==="rest" ? "rgba(127,216,138,0.35)" : t.glow;
+
+  var inner;
+  if (state.phase === "awaitingFinish") {
+    inner = '<div class="dim" style="font-size:12px;margin-bottom:6px;letter-spacing:1px;">'+cur.repsLabel+'</div>'+
+      '<div class="hdr" style="font-size:14px;color:'+t.accent+';">TAP FINISH</div>';
+  } else if (state.phase === "logSet") {
+    inner = '<div class="dim" style="font-size:11px;letter-spacing:1px;">LOG THIS SET</div>';
+  } else {
+    inner = '<div class="hdr" style="font-size:56px;color:'+ringAccent+';text-shadow:0 0 20px '+ringGlow+';">'+state.secondsLeft+'</div>'+
+      '<div class="dim" style="font-size:10px;letter-spacing:2px;margin-top:4px;">'+label+'</div>';
+  }
+
+  var html = '<div class="wrap" style="display:flex;flex-direction:column;align-items:center;">';
+  var percent = sessionProgressPercent();
+  html += '<div class="row" style="width:100%;margin-bottom:6px;"><span class="dim" style="font-size:10px;letter-spacing:1px;">'+cur.section+' Â· STEP '+(state.stepIdx+1)+'/'+total+'</span>'+
+    '<button onclick="exitSession()" style="color:'+TEXT_DIM+';">'+icoX(TEXT_DIM)+'</button></div>';
+  html += '<div class="row" style="width:100%;margin-bottom:14px;"><span class="dim" style="font-size:10px;letter-spacing:1px;">SESSION PROGRESS</span>'+
+    '<span class="hdr" style="font-size:13px;color:'+t.accent+';">'+percent+'%</span></div>';
+  html += '<div class="panel" style="width:100%;text-align:center;margin-bottom:20px;">'+
+    '<div class="hdr" style="font-size:17px;color:#dff3fb;">'+cur.name+'</div>'+
+    '<div style="font-size:11px;color:'+t.accent+';margin-top:4px;">SET '+cur.setIndex+' / '+cur.setTotal+'</div></div>';
+  html += ringSVG(progress, ringAccent, ringGlow, 240, 10, inner);
+
+  /* Feature 2: Next-up preview during rest */
+  if (state.phase === "rest" && state.stepIdx + 1 < total) {
+    var next = state.queue[state.stepIdx + 1];
+    html += '<div class="panel" style="width:100%;margin-top:16px;border-left:3px solid '+t.accent+';">'+
+      '<div class="dim" style="font-size:9px;letter-spacing:2px;margin-bottom:4px;">UP NEXT</div>'+
+      '<div style="font-size:14px;color:#dff3fb;">'+next.name+'</div>'+
+      '<div style="font-size:11px;color:'+t.accent+';margin-top:2px;">SET '+(next.setIndex)+' / '+next.setTotal+' Â· '+(next.type==="time"?next.duration+"s":next.repsLabel)+'</div>'+
+    '</div>';
+  }
+
+  /* Feature 3: Previous set recall on logSet */
+  if (state.phase === "logSet") {
+    var prev = lastSetLog(cur.name);
+    if (prev) {
+      var diffColor = prev.difficulty==="easy"?"#7fd88a":prev.difficulty==="hard"?"#ffd60a":"#ff7b86";
+      html += '<div class="panel" style="width:100%;margin-top:16px;border-left:3px solid '+diffColor+';">'+
+        '<div class="dim" style="font-size:9px;letter-spacing:2px;margin-bottom:4px;">LAST SET Â· '+prev.date+'</div>'+
+        '<div style="font-size:13px;color:#dff3fb;">'+
+          (prev.actualReps != null ? prev.actualReps + ' reps' : prev.section)+
+          ' Â· <span style="color:'+diffColor+';">'+prev.difficulty.toUpperCase()+'</span>'+
+        '</div>'+
+      '</div>';
+    }
+    html += '<div class="panel" style="width:100%;margin-top:16px;">';
+    if (cur.type === "reps") {
+      html += '<label class="fieldlabel">ACTUAL REPS DONE <span style="opacity:0.6;">(target: '+cur.repsLabel+')</span></label>'+
+        '<input type="number" id="actualRepsInput" min="0" style="margin-bottom:14px;" placeholder="e.g. 7" />';
+    }
+    html += '<label class="fieldlabel">HOW DID IT FEEL?</label>';
+    html += '<div style="display:flex;gap:10px;">'+
+      '<button class="ctrlbtn" onclick="recordSetLog(\'easy\')" style="flex-direction:column;gap:4px;">'+icoSmile("#7fd88a")+'<span>EASY</span></button>'+
+      '<button class="ctrlbtn" onclick="recordSetLog(\'hard\')" style="flex-direction:column;gap:4px;">'+icoNeutral("#ffd60a")+'<span>HARD</span></button>'+
+      '<button class="ctrlbtn" onclick="recordSetLog(\'failed\')" style="flex-direction:column;gap:4px;">'+icoFrown("#ff7b86")+'<span>FAILED</span></button>'+
+    '</div></div>';
+  }
+
+  /* Feature 4: Note button during active phases */
+  if (state.phase !== "logSet" && state.phase !== "rest") {
+    var hasNote = !!state.notes[cur.name];
+    html += '<button onclick="openNoteModal(\''+cur.name.replace(/'/g,"\\'")+'\')" style="margin-top:12px;font-size:10px;letter-spacing:1px;color:'+(hasNote?t.accent:TEXT_DIM)+';display:flex;align-items:center;gap:5px;">'+
+      (hasNote?icoNote(t.accent):icoNote(TEXT_DIM))+(hasNote?'VIEW NOTES':'ADD NOTE')+'</button>';
+  }
+
+  html += '<div style="display:flex;gap:12px;margin-top:16px;width:100%;">';
+  if (state.phase === "awaitingFinish") {
+    html += '<button class="bigbtn" onclick="finishReps()" style="background:'+t.accent+';color:#02080a;box-shadow:0 0 20px '+t.glow+';padding:16px;">'+icoCheck("#02080a")+' FINISH SET</button>';
+  } else if (state.phase === "logSet") {
+    /* controls replaced by the log panel above */
+  } else {
+    html += '<button class="ctrlbtn" onclick="togglePause()">'+(state.paused?icoPlay("#dff3fb"):icoPause("#dff3fb"))+' '+(state.paused?"RESUME":"PAUSE")+'</button>';
+    html += '<button class="ctrlbtn" onclick="skipPhase()">'+icoSkip("#dff3fb")+' SKIP</button>';
+  }
+  html += '</div>';
+  html += '<button onclick="exitSession()" style="margin-top:12px;width:100%;padding:12px;border-radius:12px;background:transparent;border:1px solid rgba(255,77,94,0.4);color:#ff7b86;font-size:12px;letter-spacing:1px;">'+
+    (percent >= 75 ? "FINISH EARLY (WILL COUNT Â· "+percent+"%)" : "FINISH EARLY (WON'T COUNT Â· "+percent+"%)")+
+  '</button>';
+  html += '</div>';
+  return html;
+}
+
+function renderComplete() {
+  var t = theme();
+  var elapsed = state.sessionStartTime ? Math.round((Date.now() - state.sessionStartTime) / 1000) : 0;
+  var mins = Math.floor(elapsed / 60);
+  var secs = elapsed % 60;
+  var timeStr = mins + "m " + secs + "s";
+
+  var log = state.sessionLog || [];
+  var totalSets = log.length;
+  var easy = 0, hard = 0, failed = 0;
+  log.forEach(function(e){
+    if (e.difficulty === "easy") easy++;
+    else if (e.difficulty === "hard") hard++;
+    else failed++;
+  });
+  var avgDiff = totalSets > 0 ? (easy >= hard && easy >= failed ? "EASY" : failed >= hard ? "FAILED" : "HARD") : "N/A";
+
+  var html = '<div class="wrap" style="margin-top:40px;text-align:center;">';
+  html += icoFlame(t.accent);
+  html += '<div class="hdr" style="font-size:24px;color:'+t.accent+';margin-top:14px;text-shadow:0 0 14px '+t.glow+';">PROTOCOL COMPLETE</div>';
+  html += '<div class="dim" style="font-size:12px;margin-top:6px;">'+state.selectedDay+' session logged.</div>';
+
+  /* Session summary cards */
+  html += '<div class="panel" style="margin-top:24px;text-align:left;">';
+  html += '<div class="dim" style="font-size:10px;letter-spacing:2px;margin-bottom:12px;">SESSION SUMMARY</div>';
+
+  html += '<div class="statgrid" style="grid-template-columns:1fr 1fr;">';
+  html += '<div class="statbox"><div class="statval" style="font-size:20px;">'+timeStr+'</div><div class="statlabel dim">DURATION</div></div>';
+  html += '<div class="statbox"><div class="statval" style="font-size:20px;">'+totalSets+'</div><div class="statlabel dim">SETS LOGGED</div></div>';
+  html += '<div class="statbox"><div class="statval" style="font-size:20px;color:#7fd88a;">'+easy+'</div><div class="statlabel dim">EASY</div></div>';
+  html += '<div class="statbox"><div class="statval" style="font-size:20px;color:#ffd60a;">'+hard+'</div><div class="statlabel dim">HARD</div></div>';
+  html += '<div class="statbox"><div class="statval" style="font-size:20px;color:#ff7b86;">'+failed+'</div><div class="statlabel dim">FAILED</div></div>';
+  html += '<div class="statbox"><div class="statval" style="font-size:20px;">'+avgDiff+'</div><div class="statlabel dim">AVG DIFFICULTY</div></div>';
+  html += '</div>';
+
+  if (log.length > 0) {
+    html += '<div class="dim" style="font-size:9px;letter-spacing:1px;margin-top:14px;margin-bottom:8px;">SET BREAKDOWN</div>';
+    log.forEach(function(e){
+      var diffColor = e.difficulty==="easy"?"#7fd88a":e.difficulty==="hard"?"#ffd60a":"#ff7b86";
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:11px;">'+
+        '<span style="color:#cde3ec;">'+e.exercise+' Â· SET '+e.setIndex+'</span>'+
+        '<span style="color:'+diffColor+';">'+(e.actualReps != null ? e.actualReps+' reps Â· ':e.section+' Â· ')+e.difficulty.toUpperCase()+'</span>'+
+      '</div>';
+    });
+  }
+
+  html += '</div>';
+
+  html += '<button class="hdr" onclick="returnFromComplete()" style="margin-top:24px;padding:14px 28px;border-radius:12px;background:'+t.accent+';color:#02080a;font-size:13px;">RETURN</button>';
+  html += '</div>';
+  return html;
+}
+
+function renderStats() {
+  var t = theme();
+  var s = computeStats();
+  var html = '<div class="wrap">';
+  html += '<div class="row" style="margin-bottom:16px;"><div class="hdr" style="font-size:16px;color:'+t.accent+';letter-spacing:1px;">DIAGNOSTICS</div>'+
+    '<button onclick="toggleStats()" style="color:'+TEXT_DIM+';">'+icoX(TEXT_DIM)+'</button></div>';
+
+  /* Summary stat cards */
+  html += '<div class="statgrid">';
+  html += '<div class="panel statbox"><div style="color:'+t.accent+';margin-bottom:8px;">'+icoChart(t.accent)+'</div><div class="statval">'+s.totalSessions+'</div><div class="statlabel dim">SESSIONS LOGGED</div></div>';
+  html += '<div class="panel statbox"><div style="color:'+t.accent+';margin-bottom:8px;">'+icoChart(t.accent)+'</div><div class="statval">'+s.totalBoulder+'</div><div class="statlabel dim">BOULDER LOGS</div></div>';
+  html += '<div class="panel statbox"><div style="color:'+t.accent+';margin-bottom:8px;">'+icoChart(t.accent)+'</div><div class="statval">'+s.thisWeekCount+'/6</div><div class="statlabel dim">THIS WEEK</div></div>';
+  html += '<div class="panel statbox"><div style="color:'+t.accent+';margin-bottom:8px;">'+icoFlame(t.accent,16)+'</div><div class="statval">'+s.streak+'d</div><div class="statlabel dim">CURRENT STREAK</div></div>';
+  html += '</div>';
+
+  /* Last 7 days dots */
+  html += '<div class="panel" style="margin-bottom:16px;"><div class="dim" style="font-size:10px;letter-spacing:2px;margin-bottom:8px;">LAST 7 DAYS</div><div style="display:flex;gap:8px;justify-content:space-between;">';
+  s.last7.forEach(function(d){
+    var dow = new Date(d.iso+"T00:00:00").toLocaleDateString(undefined,{weekday:"short"}).slice(0,2).toUpperCase();
+    var dotStyle = d.isRestDay
+      ? 'background:transparent;border:2px dashed '+t.accentDim+';'
+      : 'background:'+(d.active?t.accent:'rgba(255,255,255,0.06)')+';box-shadow:'+(d.active?'0 0 10px '+t.glow:'none')+';';
+    html += '<div style="display:flex;flex-direction:column;align-items:center;gap:6px;"><div class="dot" style="'+dotStyle+'"></div><span class="dim" style="font-size:9px;">'+dow+'</span></div>';
+  });
+  html += '</div></div>';
+
+  /* Tab navigation */
+  var tabs = ["monthly","progression","exercise"];
+  var tabLabels = { monthly: "MONTHLY", progression: "PROGRESSION", exercise: "EXERCISE LOG" };
+  html += '<div class="panel" style="margin-bottom:16px;padding:6px;display:flex;gap:4px;">';
+  tabs.forEach(function(tab){
+    var active = state.statsTab === tab;
+    html += '<button onclick="state.statsTab=\''+tab+'\';render();" style="flex:1;padding:8px 4px;border-radius:8px;font-size:10px;letter-spacing:1px;background:'+(active?t.accent:'transparent')+';color:'+(active?'#02080a':TEXT_DIM)+';border:none;cursor:pointer;">'+tabLabels[tab]+'</button>';
+  });
+  html += '</div>';
+
+  /* TAB: Monthly heatmap with month navigation */
+  if (state.statsTab === "monthly") {
+    var now = new Date();
+    var viewDate = new Date(now.getFullYear(), now.getMonth() - state.statsMonthOffset, 1);
+    var monthLabel = viewDate.toLocaleDateString(undefined, { month: "long", year: "numeric" }).toUpperCase();
+
+    html += '<div class="panel" style="margin-bottom:16px;">';
+    html += '<div class="row" style="margin-bottom:10px;">'+
+      '<button onclick="state.statsMonthOffset++;render();" style="color:'+TEXT_DIM+';padding:4px 8px;">&#9664;</button>'+
+      '<div class="dim" style="font-size:10px;letter-spacing:2px;flex:1;text-align:center;">'+monthLabel+'</div>'+
+      '<button onclick="if(state.statsMonthOffset>0){state.statsMonthOffset--;render();}" style="color:'+(state.statsMonthOffset>0?TEXT_DIM:'rgba(255,255,255,0.1)')+';padding:4px 8px;">&#9654;</button>'+
+    '</div>';
+
+    /* Build month grid */
+    var y = viewDate.getFullYear(), m = viewDate.getMonth();
+    var daysInMonth = new Date(y, m+1, 0).getDate();
+    var firstDow = new Date(y, m, 1).getDay();
+    html += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;">';
+    /* Empty slots for offset */
+    for (var pad = 0; pad < firstDow; pad++) html += '<div class="daycell" style="background:transparent;"></div>';
+    for (var day = 1; day <= daysInMonth; day++) {
+      var iso = y + "-" + String(m+1).padStart(2,"0") + "-" + String(day).padStart(2,"0");
+      var dayDate = new Date(iso+"T00:00:00");
+      var dow = dayDate.getDay();
+      var isRestDay = dow === 0 || dow === 3;
+      var pct = 0;
+      if (!isRestDay) {
+        var daySessions = setLogsForDate(iso);
+        var dayBoulder = boulderLogsForDate(iso);
+        var dayTotal = daySessions.length + dayBoulder.length;
+        if (dayTotal > 0) {
+          var dayDifficulty = daySessions.reduce(function(sum, e){ return sum + (e.difficulty === "easy" ? 1 : e.difficulty === "hard" ? 0.5 : 0); }, 0);
+          pct = Math.min(100, Math.round((dayDifficulty / daySessions.length) * 100)) || (dayTotal > 0 ? 50 : 0);
+        }
+      }
+      var dayStyle = isRestDay
+        ? 'border:1.5px dashed '+t.accentDim+';color:'+t.accentDim+';'
+        : 'background:'+percentToColor(pct)+';box-shadow:0 0 5px rgba(0,0,0,0.4);color:#02080a;';
+      var todayMark = iso === todayISO ? 'outline:2px solid '+t.accent+';outline-offset:1px;' : '';
+      html += '<div class="daycell" style="'+dayStyle+todayMark+'" title="'+iso+' Â· '+pct+'%">'+day+'</div>';
+    }
+    html += '</div>';
+    html += '<div class="row" style="font-size:9px;">'+
+      '<span class="dim">0%</span>'+
+      '<div style="flex:1;height:6px;margin:0 8px;border-radius:3px;background:linear-gradient(90deg,#ff3b30,#ff9500,#ffd60a,#34c759);"></div>'+
+      '<span class="dim">100%</span>'+
+    '</div></div>';
+  }
+
+  /* TAB: Weekly progression (Feature 7) */
+  if (state.statsTab === "progression") {
+    /* Collect all exercises with history */
+    var exercisesWithHistory = [];
+    var seenNames = {};
+    state.exerciseHistory.forEach(function(r){
+      if (!seenNames[r.exercise]) {
+        seenNames[r.exercise] = true;
+        exercisesWithHistory.push(r.exercise);
+      }
+    });
+
+    if (exercisesWithHistory.length === 0) {
+      html += '<div class="panel" style="text-align:center;color:'+TEXT_DIM+';font-size:13px;padding:30px;">No exercise history yet. Complete a session to see progression.</div>';
+    } else {
+      /* Show last 8 weeks */
+      var weekData = {};
+      var now2 = new Date();
+      for (var w = 0; w < 8; w++) {
+        var weekStart = new Date(now2);
+        weekStart.setDate(weekStart.getDate() - weekStart.getDay() - (w * 7));
+        var weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+        var ws = weekStart.toISOString().slice(0,10);
+        var we = weekEnd.toISOString().slice(0,10);
+        var wLabel = (weekStart.getMonth()+1) + "/" + weekStart.getDate();
+        weekData[w] = { label: wLabel, start: ws, end: we, exercises: {} };
+      }
+
+      /* Fill in actual data from exerciseHistory and setLogs */
+      exercisesWithHistory.forEach(function(exName){
+        for (var w = 0; w < 8; w++) {
+          weekData[w].exercises[exName] = 0;
+        }
+      });
+      state.exerciseHistory.forEach(function(r){
+        for (var w = 0; w < 8; w++) {
+          if (r.date >= weekData[w].start && r.date <= weekData[w].end) {
+            weekData[w].exercises[r.exercise] = (weekData[w].exercises[r.exercise] || 0) + r.setsCompleted;
+          }
+        }
+      });
+
+      /* Find max for scaling */
+      var maxSets = 1;
+      for (var w = 0; w < 8; w++) {
+        exercisesWithHistory.forEach(function(ex){
+          if (weekData[w].exercises[ex] > maxSets) maxSets = weekData[w].exercises[ex];
+        });
+      }
+
+      /* Render per-exercise chart */
+      exercisesWithHistory.forEach(function(exName){
+        html += '<div class="panel" style="margin-bottom:12px;">';
+        html += '<div class="dim" style="font-size:10px;letter-spacing:2px;margin-bottom:10px;">'+exName.toUpperCase()+'</div>';
+        html += '<div style="display:flex;align-items:flex-end;gap:6px;height:80px;">';
+        for (var w = 7; w >= 0; w--) {
+          var val = weekData[w].exercises[exName] || 0;
+          var h = maxSets > 0 ? Math.round((val / maxSets) * 70) : 0;
+          html += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;">'+
+            '<span style="font-size:9px;color:'+t.accent+';">'+(val > 0 ? val : '')+'</span>'+
+            '<div style="width:100%;height:'+Math.max(h,2)+'px;background:'+(val>0?t.accent:'rgba(255,255,255,0.06)')+';border-radius:3px;transition:height 0.3s;"></div>'+
+            '<span class="dim" style="font-size:8px;">'+weekData[w].label+'</span>'+
+          '</div>';
+        }
+        html += '</div></div>';
+      });
+    }
+  }
+
+  /* TAB: Exercise Log */
+  if (state.statsTab === "exercise") {
+    var dayPlan = PLAN[state.selectedDay];
+    if (dayPlan.mode === "session") {
+      html += '<div class="panel" style="margin-bottom:16px;"><div class="dim" style="font-size:10px;letter-spacing:2px;margin-bottom:8px;">EXERCISE LOG Â· '+state.selectedDay.toUpperCase()+'</div>';
+      dayPlan.main.forEach(function(e, idx){
+        var eff = getEffective(state.selectedDay, "MAIN", idx);
+        var rec = lastExerciseRecord(eff.name);
+        var setLog = lastSetLog(eff.name);
+        var extra = "";
+        if (setLog) {
+          extra = " Â· " + (setLog.actualReps != null ? setLog.actualReps + " reps " : "") + setLog.difficulty.toUpperCase();
+        }
+        var hasNote = !!state.notes[eff.name];
+        html += '<div class="exline"><span>'+eff.name+(hasNote?' <span class="note-indicator"></span>':'')+'</span><span class="dim" style="white-space:nowrap;">'+(rec ? rec.date+" Â· "+rec.setsCompleted+"/"+rec.setsTotal+" sets"+extra : "no data yet")+'</span></div>';
+      });
+      html += '</div>';
+    } else {
+      html += '<div class="panel" style="text-align:center;color:'+TEXT_DIM+';font-size:13px;padding:30px;">No exercises on rest days.</div>';
+    }
+  }
+
+  html += '<div style="display:flex;gap:10px;">'+
+    '<button class="smallbtn" style="flex:1;" onclick="exportData()">'+icoDownload(TEXT_DIM)+' EXPORT DATA</button>'+
+    '<button class="smallbtn" style="flex:1;" onclick="triggerImport()">'+icoUpload(TEXT_DIM)+' IMPORT DATA</button>'+
+  '</div>';
+
+  html += '</div>';
+  return html;
+}
+
+function render() {
+  var html = renderHeader();
+  if (state.view === "overview") html += renderOverview();
+  else if (state.view === "active") html += renderActive();
+  else if (state.view === "complete") html += renderComplete();
+  else if (state.view === "stats") html += renderStats();
+  html += renderNoteModal();
+  document.getElementById("app").innerHTML = html;
+  saveSessionState();
+}
+
+/* ============================================================
+   EVENT HANDLERS (global, called from inline onclick)
+   ============================================================ */
+function toggleDayMenu(){ state.dayPickerOpen = !state.dayPickerOpen; state.themePickerOpen=false; render(); }
+function selectDay(d){ state.selectedDay = d; state.dayPickerOpen = false; render(); }
+function toggleThemeMenu(e){ e.stopPropagation(); state.themePickerOpen = !state.themePickerOpen; state.dayPickerOpen=false; render(); }
+function selectTheme(k){ state.themeKey = k; Storage.set("theme-key", k); render(); }
+function selectAlertMode(m){ state.alertMode = m; Storage.set("alert-mode", m); render(); }
+function toggleStats(){ state.view = state.view === "stats" ? "overview" : "stats"; render(); }
+
+document.addEventListener("click", function(e){
+  if (!e.target.closest(".theme-menu") && !e.target.closest('[onclick*="toggleThemeMenu"]')) state.themePickerOpen = false;
+});
+
+render();
+if (state.view === "active") runTimer();
+</script>
+</body>
+</html>

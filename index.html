@@ -534,7 +534,8 @@ var state = {
   cooldownSkip: false,
   beepFired: {},
   measurementModal: null,
-  measurements: []
+  measurements: [],
+  exerciseSuggestions: {}
 };
 (function loadAll(){
   var raw = Storage.get("workout-history");
@@ -564,6 +565,8 @@ var state = {
   if (rawCooldownSkip === "true") state.cooldownSkip = true;
   var rawMeasurements = Storage.get("body-measurements");
   state.measurements = rawMeasurements ? JSON.parse(rawMeasurements) : [];
+  var rawSuggestions = Storage.get("exercise-suggestions");
+  state.exerciseSuggestions = rawSuggestions ? JSON.parse(rawSuggestions) : {};
   restoreSession();
 })();
 
@@ -805,7 +808,40 @@ function recordSetLog(difficulty) {
   Storage.set("set-log", JSON.stringify(state.setLogs));
   state.sessionLog.push(entry);
   checkForPR(cur.name, actualReps, difficulty);
+  computeSuggestion(cur, difficulty, actualReps, actualDuration);
   goToRestOrNext();
+}
+function computeSuggestion(cur, difficulty, actualReps, actualDuration) {
+  var exName = cur.name;
+  var prev = state.exerciseSuggestions[exName] || {};
+  var suggestion = { lastDifficulty: difficulty, date: todayISO };
+  if (cur.type === "reps") {
+    var baseReps = prev.suggestedReps || parseRepsLabel(cur.repsLabel);
+    if (difficulty === "easy") {
+      suggestion.suggestedReps = Math.max(1, baseReps + 2);
+    } else if (difficulty === "failed") {
+      suggestion.suggestedReps = Math.max(1, baseReps - 2);
+    } else {
+      suggestion.suggestedReps = baseReps;
+    }
+  } else if (cur.type === "time") {
+    var baseDur = prev.suggestedDuration || cur.duration;
+    if (difficulty === "easy") {
+      suggestion.suggestedDuration = Math.max(5, baseDur + 5);
+    } else if (difficulty === "failed") {
+      suggestion.suggestedDuration = Math.max(5, baseDur - 5);
+    } else {
+      suggestion.suggestedDuration = baseDur;
+    }
+  }
+  state.exerciseSuggestions[exName] = suggestion;
+  Storage.set("exercise-suggestions", JSON.stringify(state.exerciseSuggestions));
+}
+function parseRepsLabel(label) {
+  if (!label) return 8;
+  if (label === "MAX") return 10;
+  var m = label.match(/(\d+)/);
+  return m ? parseInt(m[1], 10) : 8;
 }
 function advancePhase() {
   var cur = currentStep();
@@ -1394,6 +1430,28 @@ function renderActive() {
     '</div>';
   }
 
+  /* Hybrid progression suggestion */
+  var sug = state.exerciseSuggestions[cur.name];
+  if (sug && sug.date !== todayISO) {
+    if (cur.type === "reps" && sug.suggestedReps) {
+      var diff = sug.suggestedReps - parseRepsLabel(cur.repsLabel);
+      var sugColor = diff > 0 ? "#39ff88" : diff < 0 ? "#ff7b86" : t.accent;
+      var sugIcon = diff > 0 ? "INCREASE" : diff < 0 ? "REGRESS" : "HOLD";
+      html += '<div style="margin-top:10px;padding:8px 12px;border-radius:8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);">'+
+        '<div style="font-size:9px;letter-spacing:1px;color:'+TEXT_DIM+';">SUGGESTED NEXT</div>'+
+        '<div style="font-size:14px;color:'+sugColor+';font-weight:bold;margin-top:2px;">'+sug.suggestedReps+' reps <span style="font-size:9px;letter-spacing:1px;opacity:0.7;">('+sugIcon+')</span></div>'+
+      '</div>';
+    } else if (cur.type === "time" && sug.suggestedDuration) {
+      var diff = sug.suggestedDuration - cur.duration;
+      var sugColor = diff > 0 ? "#39ff88" : diff < 0 ? "#ff7b86" : t.accent;
+      var sugIcon = diff > 0 ? "INCREASE" : diff < 0 ? "REGRESS" : "HOLD";
+      html += '<div style="margin-top:10px;padding:8px 12px;border-radius:8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);">'+
+        '<div style="font-size:9px;letter-spacing:1px;color:'+TEXT_DIM+';">SUGGESTED NEXT</div>'+
+        '<div style="font-size:14px;color:'+sugColor+';font-weight:bold;margin-top:2px;">'+sug.suggestedDuration+'s <span style="font-size:9px;letter-spacing:1px;opacity:0.7;">('+sugIcon+')</span></div>'+
+      '</div>';
+    }
+  }
+
   /* Adaptive rest label during rest phase */
   if (state.phase === "rest") {
     var adjLabel = getRestAdjLabel(cur.name);
@@ -1418,11 +1476,13 @@ function renderActive() {
     }
     html += '<div class="panel" style="width:100%;margin-top:16px;">';
     if (cur.type === "reps") {
-      html += '<label class="fieldlabel">ACTUAL REPS DONE <span style="opacity:0.6;">(target: '+cur.repsLabel+')</span></label>'+
-        '<input type="number" id="actualRepsInput" min="0" style="margin-bottom:14px;" placeholder="e.g. 7" />';
+      var sugVal = sug && sug.suggestedReps ? sug.suggestedReps : '';
+      html += '<label class="fieldlabel">ACTUAL REPS DONE <span style="opacity:0.6;">(target: '+cur.repsLabel+(sug && sug.suggestedReps ? ' | suggested: '+sug.suggestedReps : '')+')</span></label>'+
+        '<input type="number" id="actualRepsInput" min="0" style="margin-bottom:14px;" placeholder="e.g. 7" value="'+sugVal+'" />';
     } else if (cur.type === "time") {
-      html += '<label class="fieldlabel">ACTUAL HOLD TIME <span style="opacity:0.6;">(target: '+cur.duration+'s)</span></label>'+
-        '<input type="number" id="actualDurationInput" min="0" max="'+(cur.duration+10)+'" style="margin-bottom:14px;" placeholder="e.g. '+cur.duration+'" value="'+cur.duration+'" />';
+      var sugDur = sug && sug.suggestedDuration ? sug.suggestedDuration : cur.duration;
+      html += '<label class="fieldlabel">ACTUAL HOLD TIME <span style="opacity:0.6;">(target: '+cur.duration+'s'+(sug && sug.suggestedDuration && sug.suggestedDuration!==cur.duration ? ' | suggested: '+sug.suggestedDuration+'s' : '')+')</span></label>'+
+        '<input type="number" id="actualDurationInput" min="0" max="'+(cur.duration+10)+'" style="margin-bottom:14px;" placeholder="e.g. '+cur.duration+'" value="'+sugDur+'" />';
     }
     html += '<label class="fieldlabel">HOW DID IT FEEL?</label>';
     html += '<div style="display:flex;gap:10px;">'+

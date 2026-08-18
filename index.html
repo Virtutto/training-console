@@ -484,6 +484,7 @@ function icoChart(c){ return '<svg width="16" height="16" viewBox="0 0 24 24" fi
 function icoFlame(c,size){ size=size||40; return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 24 24" fill="'+c+'" stroke="none"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>'; }
 function icoGear(c){ return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>'; }
 function icoChevron(c){ return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>'; }
+function icoTree(c){ return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><line x1="12" y1="7" x2="12" y2="13"/><line x1="12" y1="13" x2="5" y2="17"/><line x1="12" y1="13" x2="19" y2="17"/></svg>'; }
 function icoPencil(c){ return '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>'; }
 function icoDownload(c){ return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'; }
 function icoUpload(c){ return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'; }
@@ -602,6 +603,34 @@ function lastSetLog(name) {
   var recs = state.setLogs.filter(function(r){ return r.exercise === name; });
   if (!recs.length) return null;
   return recs[recs.length - 1];
+}
+function getSkillLevel(exName) {
+  var tree = SKILL_TREE[exName];
+  if (!tree) return { level: 0, bestReps: 0, bestHold: 0, completions: 0 };
+  var bestReps = 0;
+  var bestHold = 0;
+  var completions = 0;
+  var successfulCompletions = 0;
+  state.setLogs.forEach(function(sl){
+    if (sl.exercise === exName) {
+      completions++;
+      if (sl.actualReps != null && sl.actualReps > bestReps) bestReps = sl.actualReps;
+      if (sl.actualDuration != null && sl.actualDuration > bestHold) bestHold = sl.actualDuration;
+      if (sl.difficulty !== "failed") successfulCompletions++;
+    }
+  });
+  var currentLevel = 0;
+  tree.levels.forEach(function(lv, idx){
+    var reqParts = lv.req.split(":");
+    var reqType = reqParts[0];
+    var reqVal = parseInt(reqParts[1], 10) || 0;
+    var met = false;
+    if (reqType === "reps" && bestReps >= reqVal) met = true;
+    else if (reqType === "hold" && bestHold >= reqVal) met = true;
+    else if (reqType === "special") met = false;
+    if (met) currentLevel = idx + 1;
+  });
+  return { level: currentLevel, bestReps: bestReps, bestHold: bestHold, completions: completions, successfulCompletions: successfulCompletions };
 }
 
 function setLogsForDate(iso) {
@@ -756,16 +785,19 @@ function recordSetLog(difficulty) {
   var cur = currentStep();
   if (!cur) return;
   var actualReps = null;
+  var actualDuration = null;
   if (cur.type === "reps") {
     var input = document.getElementById("actualRepsInput");
     var v = input ? parseInt(input.value, 10) : NaN;
     actualReps = isNaN(v) ? null : v;
+  } else if (cur.type === "time") {
+    actualDuration = cur.duration;
   }
   var entry = {
     date: new Date().toISOString().slice(0,10), day: state.selectedDay,
     exercise: cur.name, section: cur.section, setIndex: cur.setIndex, setTotal: cur.setTotal,
     type: cur.type, target: cur.type === "time" ? cur.duration : cur.repsLabel,
-    actualReps: actualReps, difficulty: difficulty
+    actualReps: actualReps, actualDuration: actualDuration, difficulty: difficulty
   };
   state.setLogs = state.setLogs.concat([entry]);
   Storage.set("set-log", JSON.stringify(state.setLogs));
@@ -1161,11 +1193,14 @@ function renderHeader() {
   var t = theme();
   var statsBtn = state.view !== "active" ?
     '<button class="iconbtn" onclick="toggleStats()" style="background:'+(state.view==='stats'?t.glow:'rgba(12,22,32,0.55)')+';border-color:'+(state.view==='stats'?t.accent:'rgba(255,255,255,0.08)')+';color:'+t.accent+'">'+icoChart(t.accent)+'</button>' : '';
+  var skillsBtn = state.view !== "active" ?
+    '<button class="iconbtn" onclick="toggleSkills()" style="background:'+(state.view==='skills'?t.glow:'rgba(12,22,32,0.55)')+';border-color:'+(state.view==='skills'?t.accent:'rgba(255,255,255,0.08)')+';color:'+t.accent+'">'+icoTree(t.accent)+'</button>' : '';
   return '<div class="wrap row" style="margin-bottom:18px;flex-wrap:wrap;gap:10px;position:relative;z-index:50;">'+
     '<div><div class="hdr" style="font-size:12px;letter-spacing:3px;color:'+t.accent+';text-shadow:0 0 10px '+t.glow+'">TRAINING PROTOCOL</div>'+
     '<div class="dim" style="font-size:11px;margin-top:2px;">'+new Date().toDateString().toUpperCase()+'</div></div>'+
     '<div style="display:flex;gap:8px;position:relative;">'+
       statsBtn+
+      skillsBtn+
       '<button class="iconbtn" onclick="toggleThemeMenu(event)" style="background:'+(state.themePickerOpen?t.glow:'rgba(12,22,32,0.55)')+';border-color:'+(state.themePickerOpen?t.accent:'rgba(255,255,255,0.08)')+';color:'+t.accent+'">'+icoGear(t.accent)+'</button>'+
       (state.themePickerOpen ? renderSettingsMenu() : '')+
     '</div>'+
@@ -1725,23 +1760,8 @@ function renderStats() {
     } else {
       skillKeys.forEach(function(exName){
         var tree = SKILL_TREE[exName];
-        var rec = lastExerciseRecord(exName);
-        var currentLevel = 0;
-        if (rec) {
-          /* Determine level from last logged data */
-          var reps = rec.setsCompleted || 0;
-          var bestSet = 0;
-          state.setLogs.forEach(function(sl){
-            if (sl.exercise === exName && sl.actualReps != null && sl.actualReps > bestSet) bestSet = sl.actualReps;
-          });
-          tree.levels.forEach(function(lv, idx){
-            var reqParts = lv.req.split(":");
-            var reqType = reqParts[0];
-            var reqVal = parseInt(reqParts[1], 10) || 0;
-            if (reqType === "reps" && bestSet >= reqVal) currentLevel = idx + 1;
-            else if (reqType === "hold" && bestSet >= reqVal) currentLevel = idx + 1;
-          });
-        }
+        var info = getSkillLevel(exName);
+        var currentLevel = info.level;
         html += '<div class="panel" style="margin-bottom:12px;">';
         html += '<div class="dim" style="font-size:10px;letter-spacing:2px;margin-bottom:4px;">'+tree.skill.toUpperCase()+'</div>';
         html += '<div style="font-size:11px;color:#cde3ec;margin-bottom:10px;">'+exName+'</div>';
@@ -1879,12 +1899,101 @@ function renderStats() {
   return html;
 }
 
+function renderSkillsView() {
+  var t = theme();
+  var html = '<div class="wrap">';
+
+  var skillKeys = Object.keys(SKILL_TREE);
+  var totalLevels = 0;
+  var unlockedLevels = 0;
+  skillKeys.forEach(function(exName){
+    var tree = SKILL_TREE[exName];
+    var info = getSkillLevel(exName);
+    totalLevels += tree.levels.length;
+    unlockedLevels += info.level;
+  });
+
+  html += '<div class="panel" style="margin-bottom:16px;text-align:center;">';
+  html += '<div class="dim" style="font-size:10px;letter-spacing:2px;margin-bottom:6px;">SKILL PROGRESSION</div>';
+  html += '<div style="font-size:28px;font-weight:bold;color:'+t.accent+';text-shadow:0 0 12px '+t.glow+'">'+unlockedLevels+' / '+totalLevels+'</div>';
+  html += '<div style="font-size:11px;color:'+TEXT_DIM+';margin-top:4px;">Levels Unlocked Across All Skills</div>';
+  if (totalLevels > 0) {
+    var pct = Math.round((unlockedLevels / totalLevels) * 100);
+    html += '<div style="width:100%;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;margin-top:10px;overflow:hidden;">';
+    html += '<div style="width:'+pct+'%;height:100%;background:'+t.accent+';border-radius:3px;box-shadow:0 0 8px '+t.glow+';"></div></div>';
+    html += '<div style="font-size:9px;color:'+TEXT_DIM+';margin-top:4px;">'+pct+'% Complete</div>';
+  }
+  html += '</div>';
+
+  skillKeys.forEach(function(exName){
+    var tree = SKILL_TREE[exName];
+    var info = getSkillLevel(exName);
+    var currentLevel = info.level;
+
+    html += '<div class="panel" style="margin-bottom:14px;">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
+    html += '<div class="dim" style="font-size:10px;letter-spacing:2px;">'+tree.skill.toUpperCase()+'</div>';
+    html += '<div style="font-size:9px;color:'+(currentLevel===tree.levels.length?"#39ff88":TEXT_DIM)+';">'+currentLevel+'/'+tree.levels.length+' UNLOCKED</div>';
+    html += '</div>';
+    html += '<div style="font-size:12px;color:#cde3ec;margin-bottom:12px;">'+exName+'</div>';
+
+    if (info.completions > 0) {
+      html += '<div style="display:flex;gap:12px;margin-bottom:12px;font-size:10px;color:'+TEXT_DIM+';">';
+      html += '<span>Total sets: '+info.completions+'</span>';
+      html += '<span>Successful: '+info.successfulCompletions+'</span>';
+      if (info.bestReps > 0) html += '<span>Best reps: '+info.bestReps+'</span>';
+      if (info.bestHold > 0) html += '<span>Best hold: '+info.bestHold+'s</span>';
+      html += '</div>';
+    }
+
+    html += '<div style="display:flex;flex-direction:column;gap:0;position:relative;">';
+    tree.levels.forEach(function(lv, idx){
+      var status = idx < currentLevel ? "unlocked" : idx === currentLevel ? "current" : "locked";
+      var bgColor = status === "unlocked" ? "rgba(57,255,136,0.1)" : status === "current" ? "rgba(0,229,255,0.12)" : "rgba(255,255,255,0.02)";
+      var borderColor = status === "unlocked" ? "rgba(57,255,136,0.4)" : status === "current" ? t.accent : "rgba(255,255,255,0.06)";
+      var textColor = status === "locked" ? "rgba(255,255,255,0.25)" : "#dff3fb";
+      var reqParts = lv.req.split(":");
+      var reqType = reqParts[0];
+      var reqVal = reqParts[1];
+      var reqLabel = reqType === "reps" ? reqVal+" reps" : reqType === "hold" ? reqVal+"s hold" : "Special";
+
+      var connector = '';
+      if (idx < tree.levels.length - 1) {
+        var nextStatus = (idx+1) < currentLevel ? "unlocked" : (idx+1) === currentLevel ? "current" : "locked";
+        var lineColor = status === "unlocked" ? "rgba(57,255,136,0.4)" : "rgba(255,255,255,0.08)";
+        connector = '<div style="width:2px;height:14px;background:'+lineColor+';margin-left:18px;"></div>';
+      }
+
+      html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;background:'+bgColor+';border:1px solid '+borderColor+';position:relative;">';
+      html += '<div style="width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:bold;'+
+        'background:'+(status==="unlocked"?"rgba(57,255,136,0.2)":"rgba(255,255,255,0.05)")+';'+
+        'border:1px solid '+(status==="unlocked"?"#39ff88":status==="current"?t.accent:"rgba(255,255,255,0.1)")+';'+
+        'color:'+(status==="unlocked"?"#39ff88":status==="current"?t.accent:"rgba(255,255,255,0.2)")+';">'+
+        (status==="unlocked"?"&#10003;":(idx+1))+'</div>';
+      html += '<div style="flex:1;">';
+      html += '<div style="font-size:12px;color:'+textColor+';'+(status==="current"?"font-weight:bold;":"")+'">'+lv.name+'</div>';
+      html += '<div style="font-size:9px;color:'+(status==="locked"?"rgba(255,255,255,0.2)":TEXT_DIM)+';margin-top:2px;">'+reqLabel+'</div>';
+      html += '</div>';
+      if (status === "unlocked") html += '<div style="font-size:8px;letter-spacing:1px;color:#39ff88;font-weight:bold;">DONE</div>';
+      else if (status === "current") html += '<div style="font-size:8px;letter-spacing:1px;color:'+t.accent+';font-weight:bold;">ACTIVE</div>';
+      else html += '<div style="font-size:8px;letter-spacing:1px;color:rgba(255,255,255,0.15);">LOCKED</div>';
+      html += '</div>';
+      html += connector;
+    });
+    html += '</div></div>';
+  });
+
+  html += '</div>';
+  return html;
+}
+
 function render() {
   var html = renderHeader();
   if (state.view === "overview") html += renderOverview();
   else if (state.view === "active") html += renderActive();
   else if (state.view === "complete") html += renderComplete();
   else if (state.view === "stats") html += renderStats();
+  else if (state.view === "skills") html += renderSkillsView();
   html += renderNoteModal();
   html += renderMeasurementModal();
   document.getElementById("app").innerHTML = html;
@@ -1900,6 +2009,7 @@ function toggleThemeMenu(e){ e.stopPropagation(); state.themePickerOpen = !state
 function selectTheme(k){ state.themeKey = k; Storage.set("theme-key", k); render(); }
 function selectAlertMode(m){ state.alertMode = m; Storage.set("alert-mode", m); render(); }
 function toggleStats(){ state.view = state.view === "stats" ? "overview" : "stats"; render(); }
+function toggleSkills(){ state.view = state.view === "skills" ? "overview" : "skills"; render(); }
 
 document.addEventListener("click", function(e){
   if (!e.target.closest(".theme-menu") && !e.target.closest('[onclick*="toggleThemeMenu"]')) state.themePickerOpen = false;

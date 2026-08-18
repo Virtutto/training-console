@@ -791,7 +791,9 @@ function recordSetLog(difficulty) {
     var v = input ? parseInt(input.value, 10) : NaN;
     actualReps = isNaN(v) ? null : v;
   } else if (cur.type === "time") {
-    actualDuration = cur.duration;
+    var input = document.getElementById("actualDurationInput");
+    var v = input ? parseInt(input.value, 10) : NaN;
+    actualDuration = isNaN(v) ? cur.duration : Math.min(v, cur.duration);
   }
   var entry = {
     date: new Date().toISOString().slice(0,10), day: state.selectedDay,
@@ -1418,6 +1420,9 @@ function renderActive() {
     if (cur.type === "reps") {
       html += '<label class="fieldlabel">ACTUAL REPS DONE <span style="opacity:0.6;">(target: '+cur.repsLabel+')</span></label>'+
         '<input type="number" id="actualRepsInput" min="0" style="margin-bottom:14px;" placeholder="e.g. 7" />';
+    } else if (cur.type === "time") {
+      html += '<label class="fieldlabel">ACTUAL HOLD TIME <span style="opacity:0.6;">(target: '+cur.duration+'s)</span></label>'+
+        '<input type="number" id="actualDurationInput" min="0" max="'+(cur.duration+10)+'" style="margin-bottom:14px;" placeholder="e.g. '+cur.duration+'" value="'+cur.duration+'" />';
     }
     html += '<label class="fieldlabel">HOW DID IT FEEL?</label>';
     html += '<div style="display:flex;gap:10px;">'+

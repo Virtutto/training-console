@@ -206,6 +206,107 @@ var PLAN = {
 var WINDUP_SECONDS = 5;
 
 /* ============================================================
+   SKILL PROGRESSION TREES (exercise -> skill -> levels)
+   ============================================================ */
+var SKILL_TREE = {
+  "Wall handstand hold": { skill: "Handstand", levels: [
+    { name: "Wall Hold 15s", req: "hold:15" },
+    { name: "Wall Hold 30s", req: "hold:30" },
+    { name: "Wall Hold 45s", req: "hold:45" },
+    { name: "Freestanding 10s", req: "special:freestanding" },
+    { name: "HSPU Negatives", req: "reps:3" }
+  ]},
+  "Pike push-ups (elevated feet)": { skill: "Overhead Press", levels: [
+    { name: "Pike Push-ups 6r", req: "reps:6" },
+    { name: "Elevated Pike 8r", req: "reps:8" },
+    { name: "Wall HSPU 3r", req: "reps:3" },
+    { name: "Freestanding HSPU", req: "special:hspu" }
+  ]},
+  "Dip negatives (3-5s lower)": { skill: "Dips", levels: [
+    { name: "Negatives 5r", req: "reps:5" },
+    { name: "Bench Dips 10r", req: "reps:10" },
+    { name: "Ring Dips 3r", req: "reps:3" },
+    { name: "Ring Dips 8r", req: "reps:8" }
+  ]},
+  "Diamond push-ups": { skill: "Push Strength", levels: [
+    { name: "Diamond 10r", req: "reps:10" },
+    { name: "Diamond 15r", req: "reps:15" },
+    { name: "Archer Push-ups", req: "reps:6" },
+    { name: "One Arm Negative", req: "special:onearm" }
+  ]},
+  "Bulgarian split squats": { skill: "Single Leg", levels: [
+    { name: "Split Squat 8r", req: "reps:8" },
+    { name: "Split Squat 12r", req: "reps:12" },
+    { name: "Pistol Neg 3r", req: "reps:3" },
+    { name: "Full Pistol 5r", req: "reps:5" }
+  ]},
+  "Hanging knee raises": { skill: "Core", levels: [
+    { name: "Knee Raises 10r", req: "reps:10" },
+    { name: "Knee Raises 15r", req: "reps:15" },
+    { name: "Leg Raises 8r", req: "reps:8" },
+    { name: "Toes to Bar", req: "reps:10" }
+  ]},
+  "Band pull-up negatives (5s lower)": { skill: "Pull Strength", levels: [
+    { name: "Negatives 4r", req: "reps:4" },
+    { name: "Band Pull-ups 6r", req: "reps:6" },
+    { name: "Pull-ups 3r", req: "reps:3" },
+    { name: "Pull-ups 10r", req: "reps:10" }
+  ]},
+  "Ring rows (feet elevated)": { skill: "Row Strength", levels: [
+    { name: "Ring Rows 8r", req: "reps:8" },
+    { name: "Elevated Rows 10r", req: "reps:10" },
+    { name: "Low Rows 12r", req: "reps:12" },
+    { name: "Feet-Elevated 15r", req: "reps:15" }
+  ]},
+  "Tuck front lever holds": { skill: "Front Lever", levels: [
+    { name: "Tuck 10s", req: "hold:10" },
+    { name: "Tuck 20s", req: "hold:20" },
+    { name: "Advanced Tuck 10s", req: "hold:10" },
+    { name: "Straddle 5s", req: "hold:5" }
+  ]},
+  "Assisted pull-ups (band)": { skill: "Pull-ups", levels: [
+    { name: "Band Assist 8r", req: "reps:8" },
+    { name: "Light Band 6r", req: "reps:6" },
+    { name: "No Band 3r", req: "reps:3" },
+    { name: "No Band 10r", req: "reps:10" }
+  ]}
+};
+
+/* ============================================================
+   MUSCLE GROUP TAGS (exercise -> muscle groups + weight)
+   ============================================================ */
+var MUSCLE_TAGS = {
+  "Wall handstand hold":        { shoulders: 3, core: 1 },
+  "Pike push-ups (elevated feet)": { shoulders: 3, chest: 1, triceps: 2 },
+  "Dip negatives (3-5s lower)": { chest: 2, triceps: 3, shoulders: 1 },
+  "Diamond push-ups":           { chest: 2, triceps: 3 },
+  "Hollow body hold":           { core: 3 },
+  "Bulgarian split squats":     { quads: 3, glutes: 2, hamstrings: 1 },
+  "Pistol squat progression":   { quads: 3, glutes: 2, core: 1 },
+  "Hanging knee raises":        { core: 3, forearms: 1 },
+  "Nordic curl negatives":      { hamstrings: 3, glutes: 1 },
+  "Plank":                      { core: 3, shoulders: 1 },
+  "Band pull-up negatives (5s lower)": { lats: 3, biceps: 2, forearms: 1 },
+  "Ring rows (feet elevated)":  { lats: 2, biceps: 2, rear_delts: 2 },
+  "Dip negatives / bench dips": { chest: 2, triceps: 3, shoulders: 1 },
+  "Scapular pull-ups":          { lats: 2, rear_delts: 2, forearms: 1 },
+  "Dead hang":                  { forearms: 3, lats: 1 },
+  "Wall HSPU negatives":        { shoulders: 3, triceps: 2, core: 1 },
+  "Ring push-ups":              { chest: 3, triceps: 2, shoulders: 1, core: 1 },
+  "Dips (assisted if needed)":  { chest: 2, triceps: 3, shoulders: 1 },
+  "Archer push-ups":            { chest: 3, triceps: 2, shoulders: 2 },
+  "Hollow rocks":               { core: 3 },
+  "Tuck front lever holds":     { lats: 3, core: 2, rear_delts: 2, forearms: 1 },
+  "Assisted pull-ups (band)":   { lats: 3, biceps: 2, forearms: 1 },
+  "Ring rows":                  { lats: 2, biceps: 2, rear_delts: 1 },
+  "Australian pulls (elevated)": { lats: 2, biceps: 2, rear_delts: 1 },
+  "Farmer carry / dead hang":   { forearms: 3, core: 1, traps: 1 }
+};
+var MUSCLE_GROUPS = ["chest","shoulders","triceps","biceps","lats","rear_delts","core","quads","hamstrings","glutes","forearms","traps"];
+var MUSCLE_LABELS = { chest:"CHEST", shoulders:"SHOULDERS", triceps:"TRICEPS", biceps:"BICEPS", lats:"LATS", rear_delts:"REAR DELTS", core:"CORE", quads:"QUADS", hamstrings:"HAMSTRINGS", glutes:"GLUTES", forearms:"FOREARMS", traps:"TRAPS" };
+var MUSCLE_COLORS = { chest:"#ff4d5e", shoulders:"#ff9500", triceps:"#ffd60a", biceps:"#39ff88", lats:"#00e5ff", rear_delts:"#b48cff", core:"#ff7b86", quads:"#7fd88a", hamstrings:"#ffb547", glutes:"#ff6b9d", forearms:"#cde3ec", traps:"#8da4b0" };
+
+/* ============================================================
    PER-EXERCISE OVERRIDES (persist forever until edited/reset)
    ============================================================ */
 function overrideKey(day, section, idx){ return day + "|" + section + "|" + idx; }
@@ -1414,8 +1515,8 @@ function renderStats() {
   html += '</div></div>';
 
   /* Tab navigation */
-  var tabs = ["monthly","progression","exercise","measurements"];
-  var tabLabels = { monthly: "MONTHLY", progression: "PROGRESSION", exercise: "EXERCISE LOG", measurements: "BODY" };
+  var tabs = ["monthly","progression","exercise","measurements","skills","muscles"];
+  var tabLabels = { monthly: "MONTHLY", progression: "PROGRESSION", exercise: "EXERCISE LOG", measurements: "BODY", skills: "SKILLS", muscles: "MUSCLES" };
   html += '<div class="panel" style="margin-bottom:16px;padding:6px;display:flex;gap:4px;">';
   tabs.forEach(function(tab){
     var active = state.statsTab === tab;
@@ -1614,6 +1715,146 @@ function renderStats() {
       });
       html += '</div>';
     }
+  }
+
+  /* TAB: Skill Progression Trees */
+  if (state.statsTab === "skills") {
+    var skillKeys = Object.keys(SKILL_TREE);
+    if (skillKeys.length === 0) {
+      html += '<div class="panel" style="text-align:center;color:'+TEXT_DIM+';font-size:13px;padding:30px;">No skill trees defined.</div>';
+    } else {
+      skillKeys.forEach(function(exName){
+        var tree = SKILL_TREE[exName];
+        var rec = lastExerciseRecord(exName);
+        var currentLevel = 0;
+        if (rec) {
+          /* Determine level from last logged data */
+          var reps = rec.setsCompleted || 0;
+          var bestSet = 0;
+          state.setLogs.forEach(function(sl){
+            if (sl.exercise === exName && sl.actualReps != null && sl.actualReps > bestSet) bestSet = sl.actualReps;
+          });
+          tree.levels.forEach(function(lv, idx){
+            var reqParts = lv.req.split(":");
+            var reqType = reqParts[0];
+            var reqVal = parseInt(reqParts[1], 10) || 0;
+            if (reqType === "reps" && bestSet >= reqVal) currentLevel = idx + 1;
+            else if (reqType === "hold" && bestSet >= reqVal) currentLevel = idx + 1;
+          });
+        }
+        html += '<div class="panel" style="margin-bottom:12px;">';
+        html += '<div class="dim" style="font-size:10px;letter-spacing:2px;margin-bottom:4px;">'+tree.skill.toUpperCase()+'</div>';
+        html += '<div style="font-size:11px;color:#cde3ec;margin-bottom:10px;">'+exName+'</div>';
+        html += '<div style="display:flex;flex-direction:column;gap:6px;">';
+        tree.levels.forEach(function(lv, idx){
+          var status = idx < currentLevel ? "unlocked" : idx === currentLevel ? "current" : "locked";
+          var bgColor = status === "unlocked" ? "rgba(57,255,136,0.12)" : status === "current" ? "rgba(0,229,255,0.15)" : "rgba(255,255,255,0.03)";
+          var borderColor = status === "unlocked" ? "#39ff88" : status === "current" ? t.accent : "rgba(255,255,255,0.08)";
+          var textColor = status === "locked" ? TEXT_DIM : "#dff3fb";
+          var icon = status === "unlocked" ? "[x] " : status === "current" ? "[>]" : "[ ] ";
+          html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:'+bgColor+';border:1px solid '+borderColor+';">';
+          html += '<span style="font-family:monospace;font-size:11px;color:'+(status==="locked"?TEXT_DIM:"#39ff88")+';">'+icon+'</span>';
+          html += '<span style="font-size:11px;color:'+textColor+';'+(status==="current"?"font-weight:bold;":"")+'">'+lv.name+'</span>';
+          if (status === "current") html += '<span style="margin-left:auto;font-size:8px;letter-spacing:1px;color:'+t.accent+';">CURRENT</span>';
+          html += '</div>';
+        });
+        html += '</div></div>';
+      });
+    }
+  }
+
+  /* TAB: Muscle Heat Map */
+  if (state.statsTab === "muscles") {
+    /* Calculate weekly volume per muscle group */
+    var now = new Date();
+    var weekStart = new Date(now);
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    var weekStartISO = weekStart.toISOString().slice(0,10);
+    var weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    var weekEndISO = weekEnd.toISOString().slice(0,10);
+
+    var muscleVolume = {};
+    MUSCLE_GROUPS.forEach(function(mg){ muscleVolume[mg] = 0; });
+
+    /* Count sets from this week's session logs */
+    state.setLogs.forEach(function(sl){
+      if (sl.date >= weekStartISO && sl.date <= weekEndISO) {
+        var tags = MUSCLE_TAGS[sl.exercise];
+        if (tags) {
+          Object.keys(tags).forEach(function(mg){
+            muscleVolume[mg] = (muscleVolume[mg] || 0) + tags[mg];
+          });
+        }
+      }
+    });
+
+    /* Also count boulder sessions */
+    state.history.forEach(function(h){
+      if (h.type === "boulder" && h.date >= weekStartISO && h.date <= weekEndISO) {
+        muscleVolume.forearms = (muscleVolume.forearms || 0) + 3;
+        muscleVolume.lats = (muscleVolume.lats || 0) + 2;
+        muscleVolume.biceps = (muscleVolume.biceps || 0) + 1;
+        muscleVolume.core = (muscleVolume.core || 0) + 1;
+      }
+    });
+
+    var maxVol = Math.max.apply(null, MUSCLE_GROUPS.map(function(mg){ return muscleVolume[mg] || 0; }));
+    if (maxVol === 0) maxVol = 1;
+
+    html += '<div class="panel" style="margin-bottom:16px;">';
+    html += '<div class="dim" style="font-size:10px;letter-spacing:2px;margin-bottom:4px;">WEEKLY MUSCLE VOLUME</div>';
+    html += '<div class="dim" style="font-size:9px;margin-bottom:12px;">'+weekStartISO+' to '+weekEndISO+'</div>';
+
+    /* Body diagram using CSS grid */
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:16px;">';
+    /* Simplified body layout: top row = shoulders, lats, rear_delts; mid = chest, core, traps; bottom = biceps, quads, triceps; lower = glutes, hamstrings, forearms */
+    var bodyLayout = [
+      ["shoulders", "lats", "rear_delts"],
+      ["chest", "core", "traps"],
+      ["biceps", "quads", "triceps"],
+      ["glutes", "hamstrings", "forearms"]
+    ];
+    bodyLayout.forEach(function(row){
+      row.forEach(function(mg){
+        var vol = muscleVolume[mg] || 0;
+        var intensity = vol / maxVol;
+        var baseColor = MUSCLE_COLORS[mg] || "#fff";
+        var bgColor = intensity > 0 ? baseColor : "rgba(255,255,255,0.04)";
+        var opacity = intensity > 0 ? (0.2 + intensity * 0.6) : 1;
+        html += '<div style="padding:10px 6px;border-radius:8px;background:'+bgColor+';opacity:'+opacity+';text-align:center;border:1px solid '+(intensity > 0 ? baseColor : "rgba(255,255,255,0.06)")+';">';
+        html += '<div style="font-size:9px;letter-spacing:1px;color:'+(intensity > 0 ? "#02080a" : TEXT_DIM)+';font-weight:bold;">'+MUSCLE_LABELS[mg]+'</div>';
+        html += '<div style="font-size:14px;font-weight:900;color:'+(intensity > 0 ? "#02080a" : "#dff3fb")+';margin-top:2px;">'+vol+'</div>';
+        html += '</div>';
+      });
+    });
+    html += '</div>';
+
+    /* Bar chart per muscle group */
+    html += '<div style="display:flex;flex-direction:column;gap:4px;">';
+    MUSCLE_GROUPS.forEach(function(mg){
+      var vol = muscleVolume[mg] || 0;
+      var pct = Math.round((vol / maxVol) * 100);
+      html += '<div style="display:flex;align-items:center;gap:8px;">';
+      html += '<span style="font-size:9px;color:'+MUSCLE_COLORS[mg]+';width:70px;text-align:right;letter-spacing:0.5px;">'+MUSCLE_LABELS[mg]+'</span>';
+      html += '<div style="flex:1;height:8px;border-radius:4px;background:rgba(255,255,255,0.06);overflow:hidden;">';
+      html += '<div style="width:'+pct+'%;height:100%;background:'+MUSCLE_COLORS[mg]+';border-radius:4px;"></div>';
+      html += '</div>';
+      html += '<span style="font-size:9px;color:'+TEXT_DIM+';width:20px;">'+vol+'</span>';
+      html += '</div>';
+    });
+    html += '</div>';
+    html += '</div>';
+
+    /* Exercise -> Muscle mapping reference */
+    html += '<div class="panel" style="margin-bottom:16px;"><div class="dim" style="font-size:10px;letter-spacing:2px;margin-bottom:8px;">EXERCISE MAPPING</div>';
+    Object.keys(MUSCLE_TAGS).forEach(function(exName){
+      var tags = MUSCLE_TAGS[exName];
+      var tagList = Object.keys(tags).map(function(mg){ return '<span style="color:'+MUSCLE_COLORS[mg]+';">'+MUSCLE_LABELS[mg]+' ('+tags[mg]+')</span>'; }).join(", ");
+      html += '<div class="exline"><span style="font-size:10px;">'+exName+'</span></div>';
+      html += '<div style="font-size:9px;color:'+TEXT_DIM+';padding:0 0 6px;border-bottom:1px solid rgba(255,255,255,0.04);">'+tagList+'</div>';
+    });
+    html += '</div>';
   }
 
   /* PR Leaderboard */

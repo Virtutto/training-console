@@ -83,19 +83,19 @@ var PLAN = {
   Monday: { mode: "boulder", title: "BOULDERING", subtitle: "Primary pull/grip stimulus - log only" },
   Sunday: { mode: "rest", title: "REST", subtitle: "Recovery day - no session" },
   Tuesday: {
-    mode: "session", title: "PUSH + HSPU",
+    mode: "session", title: "PUSH FOUNDATION",
     warmup: [
       Object.assign({name:"Jump rope / jog in place"}, T(90)),
       Object.assign({name:"Arm circles (fwd/back)"}, T(30)),
       Object.assign({name:"Wrist circles + floor rock"}, T(60)),
       Object.assign({name:"Scapular push-ups"}, R("10 reps")),
       Object.assign({name:"Slow shoulder CARs"}, T(45)),
-      Object.assign({name:"Easy pike push-ups"}, R("5 reps"))
+      Object.assign({name:"Knee push-ups (easy)"}, R("8 reps"))
     ],
     main: [
-      Object.assign({name:"Wall handstand hold", sets:5, rest:165}, T(25)),
-      Object.assign({name:"Pike push-ups (elevated feet)", sets:4, rest:90}, R("6-8 reps")),
-      Object.assign({name:"Dip negatives (3-5s lower)", sets:4, rest:150}, R("5 reps")),
+      Object.assign({name:"Incline push-ups", sets:3, rest:90}, R("8-10 reps")),
+      Object.assign({name:"Standard push-ups", sets:3, rest:90}, R("8-10 reps")),
+      Object.assign({name:"Dip negatives (3-5s lower)", sets:3, rest:120}, R("5 reps")),
       Object.assign({name:"Diamond push-ups", sets:3, rest:90}, R("MAX")),
       Object.assign({name:"Hollow body hold", sets:3, rest:60}, T(25))
     ],
@@ -119,7 +119,7 @@ var PLAN = {
     main: [
       Object.assign({name:"Bulgarian split squats", sets:3, rest:90}, R("8 / leg")),
       Object.assign({name:"Pistol squat progression", sets:3, rest:120}, R("5 / leg")),
-      Object.assign({name:"Hanging knee raises", sets:4, rest:75}, R("10 reps")),
+      Object.assign({name:"Hanging knee raises", sets:3, rest:75}, R("10 reps")),
       Object.assign({name:"Nordic curl negatives", sets:3, rest:150}, R("5 reps")),
       Object.assign({name:"Plank", sets:3, rest:60}, T(40))
     ],
@@ -141,9 +141,9 @@ var PLAN = {
       Object.assign({name:"Easy ring rows"}, R("5 reps"))
     ],
     main: [
-      Object.assign({name:"Band pull-up negatives (5s lower)", sets:5, rest:180}, R("4 reps")),
-      Object.assign({name:"Ring rows (feet elevated)", sets:4, rest:90}, R("8-10 reps")),
-      Object.assign({name:"Dip negatives / bench dips", sets:4, rest:150}, R("6 reps")),
+      Object.assign({name:"Band pull-up negatives (5s lower)", sets:3, rest:120}, R("4 reps")),
+      Object.assign({name:"Ring rows (feet elevated)", sets:3, rest:90}, R("8-10 reps")),
+      Object.assign({name:"Dip negatives / bench dips", sets:3, rest:120}, R("6 reps")),
       Object.assign({name:"Scapular pull-ups", sets:3, rest:75}, R("8 reps")),
       Object.assign({name:"Dead hang", sets:3, rest:90}, R("MAX"))
     ],
@@ -155,19 +155,19 @@ var PLAN = {
     ]
   },
   Friday: {
-    mode: "session", title: "PUSH HYPERTROPHY + HSPU",
+    mode: "session", title: "PUSH HYPERTROPHY",
     warmup: [
       Object.assign({name:"Jump rope / jog in place"}, T(90)),
       Object.assign({name:"Wrist circles + floor rock"}, T(60)),
       Object.assign({name:"Scapular push-ups"}, R("10 reps")),
       Object.assign({name:"Arm circles"}, T(30)),
       Object.assign({name:"Easy dips (low depth)"}, R("5 reps")),
-      Object.assign({name:"Wall handstand touch"}, T(18))
+      Object.assign({name:"Shoulder tap push-ups"}, R("8 reps"))
     ],
     main: [
-      Object.assign({name:"Wall HSPU negatives", sets:4, rest:150}, R("3-5 reps")),
-      Object.assign({name:"Ring push-ups", sets:4, rest:90}, R("8-10 reps")),
-      Object.assign({name:"Dips (assisted if needed)", sets:4, rest:105}, R("6-8 reps")),
+      Object.assign({name:"Incline push-ups (slower)", sets:3, rest:90}, R("8-10 reps")),
+      Object.assign({name:"Ring push-ups", sets:3, rest:90}, R("8-10 reps")),
+      Object.assign({name:"Dips (assisted if needed)", sets:3, rest:90}, R("6-8 reps")),
       Object.assign({name:"Archer push-ups", sets:3, rest:90}, R("6 / side")),
       Object.assign({name:"Hollow rocks", sets:3, rest:60}, R("12 reps"))
     ],
@@ -189,9 +189,9 @@ var PLAN = {
       Object.assign({name:"Tuck hold (very brief)"}, T(6))
     ],
     main: [
-      Object.assign({name:"Tuck front lever holds", sets:5, rest:150}, T(10)),
-      Object.assign({name:"Assisted pull-ups (band)", sets:4, rest:90}, R("6-8 reps")),
-      Object.assign({name:"Ring rows", sets:4, rest:90}, R("10-12 reps")),
+      Object.assign({name:"Tuck front lever holds", sets:3, rest:120}, T(10)),
+      Object.assign({name:"Assisted pull-ups (band)", sets:3, rest:90}, R("6-8 reps")),
+      Object.assign({name:"Ring rows", sets:3, rest:90}, R("10-12 reps")),
       Object.assign({name:"Australian pulls (elevated)", sets:3, rest:75}, R("10 reps")),
       Object.assign({name:"Farmer carry / dead hang", sets:3, rest:90}, T(30))
     ],
@@ -209,18 +209,17 @@ var WINDUP_SECONDS = 5;
    SKILL PROGRESSION TREES (exercise -> skill -> levels)
    ============================================================ */
 var SKILL_TREE = {
-  "Wall handstand hold": { skill: "Handstand", levels: [
-    { name: "Wall Hold 15s", req: "hold:15" },
-    { name: "Wall Hold 30s", req: "hold:30" },
-    { name: "Wall Hold 45s", req: "hold:45" },
-    { name: "Freestanding 10s", req: "special:freestanding" },
-    { name: "HSPU Negatives", req: "reps:3" }
+  "Incline push-ups": { skill: "Push Foundation", levels: [
+    { name: "Incline 8r", req: "reps:8" },
+    { name: "Incline 12r", req: "reps:12" },
+    { name: "Standard 8r", req: "reps:8" },
+    { name: "Standard 15r", req: "reps:15" }
   ]},
-  "Pike push-ups (elevated feet)": { skill: "Overhead Press", levels: [
-    { name: "Pike Push-ups 6r", req: "reps:6" },
-    { name: "Elevated Pike 8r", req: "reps:8" },
-    { name: "Wall HSPU 3r", req: "reps:3" },
-    { name: "Freestanding HSPU", req: "special:hspu" }
+  "Standard push-ups": { skill: "Push Strength", levels: [
+    { name: "Standard 10r", req: "reps:10" },
+    { name: "Standard 15r", req: "reps:15" },
+    { name: "Diamond 8r", req: "reps:8" },
+    { name: "Diamond 12r", req: "reps:12" }
   ]},
   "Dip negatives (3-5s lower)": { skill: "Dips", levels: [
     { name: "Negatives 5r", req: "reps:5" },
@@ -228,7 +227,7 @@ var SKILL_TREE = {
     { name: "Ring Dips 3r", req: "reps:3" },
     { name: "Ring Dips 8r", req: "reps:8" }
   ]},
-  "Diamond push-ups": { skill: "Push Strength", levels: [
+  "Diamond push-ups": { skill: "Push Mastery", levels: [
     { name: "Diamond 10r", req: "reps:10" },
     { name: "Diamond 15r", req: "reps:15" },
     { name: "Archer Push-ups", req: "reps:6" },
@@ -1616,7 +1615,7 @@ function renderStats() {
 
   /* Tab navigation */
   var tabs = ["monthly","progression","exercise","measurements","skills","muscles"];
-  var tabLabels = { monthly: "MONTHLY", progression: "PROGRESSION", exercise: "EXERCISE LOG", measurements: "BODY", skills: "SKILLS", muscles: "MUSCLES" };
+  var tabLabels = { monthly: "MONTHLY", progression: "PROGRESSION", exercise: "EXERCISE LOG", measurements: "BODY", muscles: "MUSCLES" };
   html += '<div class="panel" style="margin-bottom:16px;padding:6px;display:flex;gap:4px;">';
   tabs.forEach(function(tab){
     var active = state.statsTab === tab;
@@ -1818,36 +1817,6 @@ function renderStats() {
   }
 
   /* TAB: Skill Progression Trees */
-  if (state.statsTab === "skills") {
-    var skillKeys = Object.keys(SKILL_TREE);
-    if (skillKeys.length === 0) {
-      html += '<div class="panel" style="text-align:center;color:'+TEXT_DIM+';font-size:13px;padding:30px;">No skill trees defined.</div>';
-    } else {
-      skillKeys.forEach(function(exName){
-        var tree = SKILL_TREE[exName];
-        var info = getSkillLevel(exName);
-        var currentLevel = info.level;
-        html += '<div class="panel" style="margin-bottom:12px;">';
-        html += '<div class="dim" style="font-size:10px;letter-spacing:2px;margin-bottom:4px;">'+tree.skill.toUpperCase()+'</div>';
-        html += '<div style="font-size:11px;color:#cde3ec;margin-bottom:10px;">'+exName+'</div>';
-        html += '<div style="display:flex;flex-direction:column;gap:6px;">';
-        tree.levels.forEach(function(lv, idx){
-          var status = idx < currentLevel ? "unlocked" : idx === currentLevel ? "current" : "locked";
-          var bgColor = status === "unlocked" ? "rgba(57,255,136,0.12)" : status === "current" ? "rgba(0,229,255,0.15)" : "rgba(255,255,255,0.03)";
-          var borderColor = status === "unlocked" ? "#39ff88" : status === "current" ? t.accent : "rgba(255,255,255,0.08)";
-          var textColor = status === "locked" ? TEXT_DIM : "#dff3fb";
-          var icon = status === "unlocked" ? "[x] " : status === "current" ? "[>]" : "[ ] ";
-          html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:'+bgColor+';border:1px solid '+borderColor+';">';
-          html += '<span style="font-family:monospace;font-size:11px;color:'+(status==="locked"?TEXT_DIM:"#39ff88")+';">'+icon+'</span>';
-          html += '<span style="font-size:11px;color:'+textColor+';'+(status==="current"?"font-weight:bold;":"")+'">'+lv.name+'</span>';
-          if (status === "current") html += '<span style="margin-left:auto;font-size:8px;letter-spacing:1px;color:'+t.accent+';">CURRENT</span>';
-          html += '</div>';
-        });
-        html += '</div></div>';
-      });
-    }
-  }
-
   /* TAB: Muscle Heat Map */
   if (state.statsTab === "muscles") {
     /* Calculate weekly volume per muscle group */

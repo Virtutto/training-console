@@ -1666,8 +1666,11 @@ function renderStats() {
       var dayDate = new Date(iso+"T00:00:00");
       var dow = dayDate.getDay();
       var isRestDay = dow === 0 || dow === 3;
+      var isFuture = iso > todayISO;
       var pct = 0;
-      if (!isRestDay) {
+      if (isFuture) {
+        /* future days: show as neutral, not red */
+      } else if (!isRestDay) {
         var daySessions = setLogsForDate(iso);
         var dayBoulder = boulderLogsForDate(iso);
         var dayTotal = daySessions.length + dayBoulder.length;
@@ -1676,7 +1679,9 @@ function renderStats() {
           pct = Math.min(100, Math.round((dayDifficulty / daySessions.length) * 100)) || (dayTotal > 0 ? 50 : 0);
         }
       }
-      var dayStyle = isRestDay
+      var dayStyle = isFuture
+        ? 'background:rgba(255,255,255,0.04);color:'+TEXT_DIM+';'
+        : isRestDay
         ? 'border:1.5px dashed '+t.accentDim+';color:'+t.accentDim+';'
         : 'background:'+percentToColor(pct)+';box-shadow:0 0 5px rgba(0,0,0,0.4);color:#02080a;';
       var todayMark = iso === todayISO ? 'outline:2px solid '+t.accent+';outline-offset:1px;' : '';

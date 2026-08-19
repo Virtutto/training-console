@@ -1960,14 +1960,6 @@ function renderSkillsView() {
   var t = theme();
   var html = '<div class="wrap">';
 
-  /* Group skills by category */
-  var categories = { push: { label: "PUSH", color: "#ff6b6b", skills: [] }, pull: { label: "PULL", color: "#4ecdc4", skills: [] }, legs: { label: "LEGS", color: "#ffd93d", skills: [] }, core: { label: "CORE", color: "#6bcb77", skills: [] } };
-  Object.keys(SKILL_TREE).forEach(function(exName){
-    var tree = SKILL_TREE[exName];
-    var cat = tree.cat || "push";
-    if (categories[cat]) categories[cat].skills.push({ name: exName, tree: tree });
-  });
-
   /* Overall progress */
   var totalLevels = 0, unlockedLevels = 0;
   Object.keys(SKILL_TREE).forEach(function(exName){
@@ -1988,87 +1980,154 @@ function renderSkillsView() {
   }
   html += '</div>';
 
-  /* Category columns */
+  /* Tree layout - define nodes and connections */
+  var catColors = { push: "#ff6b6b", pull: "#4ecdc4", legs: "#ffd93d", core: "#6bcb77" };
+  var catLabels = { push: "PUSH", pull: "PULL", legs: "LEGS", core: "CORE" };
+
+  /* Build node list: { id, x, y, label, color, level, total, status } */
+  var nodes = [];
+  var conns = []; /* [fromId, toId] */
+  var nodeW = 56, nodeH = 56;
+  var treeW = 320;
+
+  /* Root node */
+  var rootPct = totalLevels > 0 ? Math.round((unlockedLevels / totalLevels) * 100) : 0;
+  nodes.push({ id: "root", x: treeW/2, y: 30, label: "TRAINING", color: t.accent, level: rootPct, total: 100, status: "root", pct: rootPct });
+
+  /* Category nodes - row 2 */
   var catKeys = ["push","pull","legs","core"];
-  html += '<div style="display:flex;gap:6px;margin-bottom:16px;">';
-  catKeys.forEach(function(catKey){
-    var cat = categories[catKey];
-    if (cat.skills.length === 0) return;
-    html += '<div style="flex:1;min-width:0;">';
-    html += '<div style="text-align:center;font-size:10px;letter-spacing:2px;color:'+cat.color+';margin-bottom:10px;font-weight:bold;">'+cat.label+'</div>';
+  var catX = [48, 130, 210, 292];
+  catKeys.forEach(function(ck, ci){
+    var catSkills = Object.keys(SKILL_TREE).filter(function(k){ return SKILL_TREE[k].cat === ck; });
+    var catTotal = 0, catDone = 0;
+    catSkills.forEach(function(k){
+      var tr = SKILL_TREE[k];
+      var inf = getSkillLevel(k);
+      catTotal += tr.levels.length;
+      catDone += inf.level;
+    });
+    var catPct = catTotal > 0 ? Math.round((catDone/catTotal)*100) : 0;
+    var catStatus = catPct === 100 ? "mastered" : catPct > 0 ? "unlocked" : "locked";
+    nodes.push({ id: ck, x: catX[ci], y: 110, label: catLabels[ck], color: catColors[ck], level: catDone, total: catTotal, status: catStatus, pct: catPct });
+    conns.push(["root", ck]);
+  });
 
-    cat.skills.forEach(function(skill, sIdx){
-      var info = getSkillLevel(skill.name);
-      var currentLevel = info.level;
-      var totalLvls = skill.tree.levels.length;
-      var pct = totalLvls > 0 ? Math.round((currentLevel / totalLvls) * 100) : 0;
+  /* Skill nodes - row 3 and 4 */
+  var skillNodes = {};
+  catKeys.forEach(function(ck, ci){
+    var catSkills = Object.keys(SKILL_TREE).filter(function(k){ return SKILL_TREE[k].cat === ck; });
+    catSkills.forEach(function(k, si){
+      var tr = SKILL_TREE[k];
+      var inf = getSkillLevel(k);
+      var skPct = tr.levels.length > 0 ? Math.round((inf.level / tr.levels.length) * 100) : 0;
+      var skStatus = inf.level === tr.levels.length ? "mastered" : inf.level > 0 ? "unlocked" : "locked";
+      var nx = catX[ci];
+      var ny = 190 + si * 80;
+      var skId = "sk_"+ck+"_"+si;
+      skillNodes[k] = skId;
+      nodes.push({ id: skId, x: nx, y: ny, label: tr.skill, color: catColors[ck], level: inf.level, total: tr.levels.length, status: skStatus, pct: skPct, exercise: k, nextLevel: skStatus !== "mastered" ? tr.levels[inf.level] : null });
+      conns.push([ck, skId]);
+    });
+  });
 
-      html += '<div class="panel" style="margin-bottom:8px;padding:8px;">';
+  /* Calculate SVG viewBox */
+  var maxX = 0, maxY = 0;
+  nodes.forEach(function(n){ if(n.x+nodeW/2 > maxX) maxX = n.x+nodeW/2; if(n.y+nodeH > maxY) maxY = n.y+nodeH; });
+  var svgH = maxY + 20;
 
-      /* Skill name + progress */
-      html += '<div style="font-size:10px;color:#cde3ec;margin-bottom:6px;text-align:center;">'+skill.tree.skill+'</div>';
+  /* Draw SVG connections */
+  html += '<div class="panel" style="margin-bottom:16px;padding:8px;overflow-x:auto;">';
+  html += '<svg width="'+treeW+'" height="'+svgH+'" viewBox="0 0 '+treeW+' '+svgH+'" style="display:block;margin:0 auto;">';
 
-      /* Circular progress indicator */
-      var size = 44;
-      var r = 18;
-      var circ = 2 * Math.PI * r;
-      var offset = circ - (pct / 100) * circ;
-      html += '<div style="display:flex;justify-content:center;margin-bottom:6px;">';
-      html += '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'">';
-      html += '<circle cx="'+size/2+'" cy="'+size/2+'" r="'+r+'" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="3"/>';
-      if (pct > 0) {
-        html += '<circle cx="'+size/2+'" cy="'+size/2+'" r="'+r+'" fill="none" stroke="'+cat.color+'" stroke-width="3" stroke-linecap="round" '+
-          'stroke-dasharray="'+circ+'" stroke-dashoffset="'+offset+'" '+
-          'transform="rotate(-90 '+size/2+' '+size/2+')" style="filter:drop-shadow(0 0 4px '+cat.color+');"/>';
-      }
-      html += '<text x="'+size/2+'" y="'+(size/2+1)+'" text-anchor="middle" dominant-baseline="middle" '+
-        'fill="'+(currentLevel===totalLvls?"#39ff88":currentLevel>0?cat.color:TEXT_DIM)+'" font-size="11" font-weight="bold">'+currentLevel+'/'+totalLvls+'</text>';
-      html += '</svg></div>';
+  /* Glow filter */
+  html += '<defs><filter id="glow"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';
 
-      /* Level dots */
-      html += '<div style="display:flex;justify-content:center;gap:3px;margin-bottom:6px;">';
-      skill.tree.levels.forEach(function(lv, idx){
-        var status = idx < currentLevel ? "unlocked" : idx === currentLevel ? "current" : "locked";
-        var dotColor = status === "unlocked" ? "#39ff88" : status === "current" ? cat.color : "rgba(255,255,255,0.1)";
-        var dotGlow = status === "unlocked" ? "0 0 4px #39ff88" : status === "current" ? "0 0 6px "+cat.color : "none";
-        html += '<div style="width:8px;height:8px;border-radius:50%;background:'+dotColor+';box-shadow:'+dotGlow+';"></div>';
+  conns.forEach(function(c){
+    var from = nodes.find(function(n){ return n.id === c[0]; });
+    var to = nodes.find(function(n){ return n.id === c[1]; });
+    if (!from || !to) return;
+    var x1 = from.x, y1 = from.y + nodeH/2;
+    var x2 = to.x, y2 = to.y;
+    var isUnlocked = to.status === "unlocked" || to.status === "mastered";
+    var lineColor = isUnlocked ? to.color : "rgba(255,255,255,0.1)";
+    var lineGlow = isUnlocked ? 'filter="url(#glow)"' : '';
+    /* Curved branch line */
+    var midY = (y1 + y2) / 2;
+    html += '<path d="M'+x1+' '+y1+' C'+x1+' '+midY+' '+x2+' '+midY+' '+x2+' '+y2+'" fill="none" stroke="'+lineColor+'" stroke-width="2" '+lineGlow+'/>';
+  });
+
+  /* Draw nodes */
+  nodes.forEach(function(n){
+    var isRoot = n.status === "root";
+    var isMastered = n.status === "mastered";
+    var isUnlocked = n.status === "unlocked";
+    var isLocked = n.status === "locked";
+    var sz = isRoot ? 64 : 52;
+    var r = sz/2;
+    var cx = n.x, cy = n.y + (isRoot ? sz/2 : r);
+    var fillColor = isLocked ? "rgba(255,255,255,0.04)" : isRoot ? "rgba(255,255,255,0.08)" : n.color+"15";
+    var strokeColor = isLocked ? "rgba(255,255,255,0.1)" : isMastered ? "#39ff88" : n.color;
+    var strokeW = isMastered ? 3 : 2;
+    var glowFilter = (isUnlocked || isMastered || isRoot) ? 'filter="url(#glow)"' : '';
+
+    /* Outer ring */
+    html += '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="'+fillColor+'" stroke="'+strokeColor+'" stroke-width="'+strokeW+'" '+glowFilter+"/>";
+
+    /* Progress arc for non-root */
+    if (!isRoot && n.total > 0) {
+      var circ = 2 * Math.PI * (r - 4);
+      var offset = circ - (n.pct / 100) * circ;
+      html += '<circle cx="'+cx+'" cy="'+cy+'" r="'+(r-4)+'" fill="none" stroke="'+n.color+'" stroke-width="3" stroke-linecap="round" stroke-dasharray="'+circ+'" stroke-dashoffset="'+offset+'" transform="rotate(-90 '+cx+' '+cy+')" opacity="0.8"/>';
+    }
+
+    /* Level text */
+    var textFill = isMastered ? "#39ff88" : isUnlocked ? n.color : isRoot ? t.accent : "rgba(255,255,255,0.2)";
+    var textContent = isRoot ? n.pct+"%" : n.level+"/"+n.total;
+    html += '<text x="'+cx+'" y="'+(cy+1)+'" text-anchor="middle" dominant-baseline="middle" fill="'+textFill+'" font-size="'+(isRoot?14:11)+'" font-weight="bold">'+textContent+'</text>';
+
+    /* Label below */
+    var labelY = cy + r + 12;
+    var labelFill = isLocked ? "rgba(255,255,255,0.2)" : "#cde3ec";
+    html += '<text x="'+cx+'" y="'+labelY+'" text-anchor="middle" fill="'+labelFill+'" font-size="8" letter-spacing="0.5">'+n.label+'</text>';
+
+    /* Mastered badge */
+    if (isMastered && !isRoot) {
+      html += '<circle cx="'+(cx+r-4)+'" cy="'+(cy-r+4)+'" r="6" fill="#39ff88"/>';
+      html += '<text x="'+(cx+r-4)+'" y="'+(cy-r+5)+'" text-anchor="middle" dominant-baseline="middle" fill="#02080a" font-size="7" font-weight="bold">&#10003;</text>';
+    }
+  });
+
+  html += '</svg></div>';
+
+  /* Expanded skill details - show levels for each skill */
+  html += '<div class="panel" style="margin-bottom:16px;">';
+  html += '<div class="dim" style="font-size:10px;letter-spacing:2px;margin-bottom:10px;">SKILL DETAILS</div>';
+  catKeys.forEach(function(ck){
+    var catSkills = Object.keys(SKILL_TREE).filter(function(k){ return SKILL_TREE[k].cat === ck; });
+    if (catSkills.length === 0) return;
+    html += '<div style="margin-bottom:12px;">';
+    html += '<div style="font-size:10px;letter-spacing:1px;color:'+catColors[ck]+';margin-bottom:6px;font-weight:bold;">'+catLabels[ck]+'</div>';
+    catSkills.forEach(function(k){
+      var tr = SKILL_TREE[k];
+      var inf = getSkillLevel(k);
+      html += '<div style="margin-bottom:8px;padding:8px;background:rgba(255,255,255,0.03);border-radius:8px;border-left:3px solid '+catColors[ck]+';">';
+      html += '<div style="font-size:11px;color:#cde3ec;margin-bottom:6px;">'+tr.skill+'</div>';
+      html += '<div style="font-size:9px;color:'+TEXT_DIM+';margin-bottom:6px;">'+k+'</div>';
+      /* Level progression */
+      html += '<div style="display:flex;gap:4px;flex-wrap:wrap;">';
+      tr.levels.forEach(function(lv, idx){
+        var lvStatus = idx < inf.level ? "done" : idx === inf.level ? "next" : "locked";
+        var lvBg = lvStatus === "done" ? "#39ff8820" : lvStatus === "next" ? catColors[ck]+"20" : "rgba(255,255,255,0.04)";
+        var lvBorder = lvStatus === "done" ? "#39ff88" : lvStatus === "next" ? catColors[ck] : "rgba(255,255,255,0.08)";
+        var lvColor = lvStatus === "done" ? "#39ff88" : lvStatus === "next" ? "#cde3ec" : "rgba(255,255,255,0.2)";
+        html += '<div style="padding:4px 8px;border-radius:4px;font-size:8px;background:'+lvBg+';border:1px solid '+lvBorder+';color:'+lvColor+';">';
+        html += (lvStatus === "done" ? '&#10003; ' : lvStatus === "next" ? '&#9654; ' : '')+lv.name;
+        html += '</div>';
       });
       html += '</div>';
-
-      /* Current level name */
-      if (currentLevel < totalLvls) {
-        var nextLv = skill.tree.levels[currentLevel];
-        html += '<div style="font-size:8px;color:'+cat.color+';text-align:center;">NEXT: '+nextLv.name+'</div>';
-      } else {
-        html += '<div style="font-size:8px;color:#39ff88;text-align:center;">MASTERED</div>';
-      }
-
       html += '</div>';
-
-      /* Connector line between skills */
-      if (sIdx < cat.skills.length - 1) {
-        html += '<div style="width:2px;height:10px;background:rgba(255,255,255,0.08);margin:0 auto;"></div>';
-      }
     });
-
     html += '</div>';
-  });
-  html += '</div>';
-
-  /* Exercise detail on tap/click - show which exercise to do */
-  html += '<div class="panel" style="margin-bottom:16px;">';
-  html += '<div class="dim" style="font-size:10px;letter-spacing:2px;margin-bottom:8px;">EXERCISES IN PLAN</div>';
-  catKeys.forEach(function(catKey){
-    var cat = categories[catKey];
-    cat.skills.forEach(function(skill){
-      var info = getSkillLevel(skill.name);
-      var statusColor = info.level === skill.tree.levels.length ? "#39ff88" : info.level > 0 ? cat.color : TEXT_DIM;
-      html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);">';
-      html += '<div style="width:6px;height:6px;border-radius:50%;background:'+statusColor+';"></div>';
-      html += '<div style="flex:1;font-size:11px;color:#cde3ec;">'+skill.name+'</div>';
-      html += '<div style="font-size:9px;color:'+statusColor+';">LVL '+info.level+'</div>';
-      html += '</div>';
-    });
   });
   html += '</div>';
 

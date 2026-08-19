@@ -94,7 +94,7 @@ var PLAN = {
     ],
     main: [
       Object.assign({name:"Incline push-ups", sets:3, rest:90}, R("8-10 reps")),
-      Object.assign({name:"Standard push-ups", sets:3, rest:90}, R("8-10 reps")),
+      Object.assign({name:"Pike push-ups (elevated feet)", sets:3, rest:90}, R("6-8 reps")),
       Object.assign({name:"Dip negatives (3-5s lower)", sets:3, rest:120}, R("5 reps")),
       Object.assign({name:"Diamond push-ups", sets:3, rest:90}, R("MAX")),
       Object.assign({name:"Hollow body hold", sets:3, rest:60}, T(25))
@@ -209,65 +209,83 @@ var WINDUP_SECONDS = 5;
    SKILL PROGRESSION TREES (exercise -> skill -> levels)
    ============================================================ */
 var SKILL_TREE = {
-  "Incline push-ups": { skill: "Push Foundation", levels: [
+  "Incline push-ups": { skill: "Push Foundation", cat: "push", levels: [
+    { name: "Knee Push-ups 10r", req: "reps:10" },
     { name: "Incline 8r", req: "reps:8" },
     { name: "Incline 12r", req: "reps:12" },
-    { name: "Standard 8r", req: "reps:8" },
-    { name: "Standard 15r", req: "reps:15" }
+    { name: "Standard 8r", req: "reps:8" }
   ]},
-  "Standard push-ups": { skill: "Push Strength", levels: [
-    { name: "Standard 10r", req: "reps:10" },
-    { name: "Standard 15r", req: "reps:15" },
-    { name: "Diamond 8r", req: "reps:8" },
-    { name: "Diamond 12r", req: "reps:12" }
+  "Pike push-ups (elevated feet)": { skill: "Shoulder Press", cat: "push", levels: [
+    { name: "Pike Push-ups 6r", req: "reps:6" },
+    { name: "Elevated Pike 8r", req: "reps:8" },
+    { name: "Wall HSPU 3r", req: "reps:3" },
+    { name: "Freestanding HSPU", req: "special:hspu" }
   ]},
-  "Dip negatives (3-5s lower)": { skill: "Dips", levels: [
+  "Dip negatives (3-5s lower)": { skill: "Dips", cat: "push", levels: [
     { name: "Negatives 5r", req: "reps:5" },
     { name: "Bench Dips 10r", req: "reps:10" },
     { name: "Ring Dips 3r", req: "reps:3" },
     { name: "Ring Dips 8r", req: "reps:8" }
   ]},
-  "Diamond push-ups": { skill: "Push Mastery", levels: [
-    { name: "Diamond 10r", req: "reps:10" },
-    { name: "Diamond 15r", req: "reps:15" },
-    { name: "Archer Push-ups", req: "reps:6" },
+  "Diamond push-ups": { skill: "Push Mastery", cat: "push", levels: [
+    { name: "Diamond 8r", req: "reps:8" },
+    { name: "Diamond 12r", req: "reps:12" },
+    { name: "Archer Push-ups 6r", req: "reps:6" },
     { name: "One Arm Negative", req: "special:onearm" }
   ]},
-  "Bulgarian split squats": { skill: "Single Leg", levels: [
-    { name: "Split Squat 8r", req: "reps:8" },
-    { name: "Split Squat 12r", req: "reps:12" },
-    { name: "Pistol Neg 3r", req: "reps:3" },
-    { name: "Full Pistol 5r", req: "reps:5" }
+  "Ring push-ups": { skill: "Ring Push", cat: "push", levels: [
+    { name: "Ring Push-ups 8r", req: "reps:8" },
+    { name: "Ring Push-ups 12r", req: "reps:12" },
+    { name: "Ring Archer 5r", req: "reps:5" },
+    { name: "Ring One Arm", req: "special:ringonearm" }
   ]},
-  "Hanging knee raises": { skill: "Core", levels: [
-    { name: "Knee Raises 10r", req: "reps:10" },
-    { name: "Knee Raises 15r", req: "reps:15" },
-    { name: "Leg Raises 8r", req: "reps:8" },
-    { name: "Toes to Bar", req: "reps:10" }
-  ]},
-  "Band pull-up negatives (5s lower)": { skill: "Pull Strength", levels: [
+  "Band pull-up negatives (5s lower)": { skill: "Pull Strength", cat: "pull", levels: [
     { name: "Negatives 4r", req: "reps:4" },
     { name: "Band Pull-ups 6r", req: "reps:6" },
     { name: "Pull-ups 3r", req: "reps:3" },
     { name: "Pull-ups 10r", req: "reps:10" }
   ]},
-  "Ring rows (feet elevated)": { skill: "Row Strength", levels: [
+  "Ring rows (feet elevated)": { skill: "Row Strength", cat: "pull", levels: [
     { name: "Ring Rows 8r", req: "reps:8" },
     { name: "Elevated Rows 10r", req: "reps:10" },
     { name: "Low Rows 12r", req: "reps:12" },
     { name: "Feet-Elevated 15r", req: "reps:15" }
   ]},
-  "Tuck front lever holds": { skill: "Front Lever", levels: [
+  "Tuck front lever holds": { skill: "Front Lever", cat: "pull", levels: [
     { name: "Tuck 10s", req: "hold:10" },
     { name: "Tuck 20s", req: "hold:20" },
     { name: "Advanced Tuck 10s", req: "hold:10" },
     { name: "Straddle 5s", req: "hold:5" }
   ]},
-  "Assisted pull-ups (band)": { skill: "Pull-ups", levels: [
+  "Assisted pull-ups (band)": { skill: "Pull-ups", cat: "pull", levels: [
     { name: "Band Assist 8r", req: "reps:8" },
     { name: "Light Band 6r", req: "reps:6" },
     { name: "No Band 3r", req: "reps:3" },
     { name: "No Band 10r", req: "reps:10" }
+  ]},
+  "Bulgarian split squats": { skill: "Single Leg", cat: "legs", levels: [
+    { name: "Split Squat 8r", req: "reps:8" },
+    { name: "Split Squat 12r", req: "reps:12" },
+    { name: "Pistol Neg 3r", req: "reps:3" },
+    { name: "Full Pistol 5r", req: "reps:5" }
+  ]},
+  "Nordic curl negatives": { skill: "Hamstrings", cat: "legs", levels: [
+    { name: "Negatives 3r", req: "reps:3" },
+    { name: "Negatives 5r", req: "reps:5" },
+    { name: "Slow Negative 5s", req: "hold:5" },
+    { name: "Full Nordic 3r", req: "reps:3" }
+  ]},
+  "Hanging knee raises": { skill: "Core", cat: "core", levels: [
+    { name: "Knee Raises 10r", req: "reps:10" },
+    { name: "Knee Raises 15r", req: "reps:15" },
+    { name: "Leg Raises 8r", req: "reps:8" },
+    { name: "Toes to Bar", req: "reps:10" }
+  ]},
+  "Hollow body hold": { skill: "Hollow", cat: "core", levels: [
+    { name: "Hollow 15s", req: "hold:15" },
+    { name: "Hollow 25s", req: "hold:25" },
+    { name: "Hollow Rocks 10r", req: "reps:10" },
+    { name: "Hollow Rocks 20r", req: "reps:20" }
   ]}
 };
 
@@ -1937,10 +1955,17 @@ function renderSkillsView() {
   var t = theme();
   var html = '<div class="wrap">';
 
-  var skillKeys = Object.keys(SKILL_TREE);
-  var totalLevels = 0;
-  var unlockedLevels = 0;
-  skillKeys.forEach(function(exName){
+  /* Group skills by category */
+  var categories = { push: { label: "PUSH", color: "#ff6b6b", skills: [] }, pull: { label: "PULL", color: "#4ecdc4", skills: [] }, legs: { label: "LEGS", color: "#ffd93d", skills: [] }, core: { label: "CORE", color: "#6bcb77", skills: [] } };
+  Object.keys(SKILL_TREE).forEach(function(exName){
+    var tree = SKILL_TREE[exName];
+    var cat = tree.cat || "push";
+    if (categories[cat]) categories[cat].skills.push({ name: exName, tree: tree });
+  });
+
+  /* Overall progress */
+  var totalLevels = 0, unlockedLevels = 0;
+  Object.keys(SKILL_TREE).forEach(function(exName){
     var tree = SKILL_TREE[exName];
     var info = getSkillLevel(exName);
     totalLevels += tree.levels.length;
@@ -1948,74 +1973,99 @@ function renderSkillsView() {
   });
 
   html += '<div class="panel" style="margin-bottom:16px;text-align:center;">';
-  html += '<div class="dim" style="font-size:10px;letter-spacing:2px;margin-bottom:6px;">SKILL PROGRESSION</div>';
-  html += '<div style="font-size:28px;font-weight:bold;color:'+t.accent+';text-shadow:0 0 12px '+t.glow+'">'+unlockedLevels+' / '+totalLevels+'</div>';
-  html += '<div style="font-size:11px;color:'+TEXT_DIM+';margin-top:4px;">Levels Unlocked Across All Skills</div>';
+  html += '<div class="dim" style="font-size:10px;letter-spacing:2px;margin-bottom:6px;">SKILL TREE</div>';
   if (totalLevels > 0) {
     var pct = Math.round((unlockedLevels / totalLevels) * 100);
-    html += '<div style="width:100%;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;margin-top:10px;overflow:hidden;">';
-    html += '<div style="width:'+pct+'%;height:100%;background:'+t.accent+';border-radius:3px;box-shadow:0 0 8px '+t.glow+';"></div></div>';
-    html += '<div style="font-size:9px;color:'+TEXT_DIM+';margin-top:4px;">'+pct+'% Complete</div>';
+    html += '<div style="font-size:24px;font-weight:bold;color:'+t.accent+';text-shadow:0 0 12px '+t.glow+';">'+pct+'%</div>';
+    html += '<div style="width:100%;height:4px;background:rgba(255,255,255,0.06);border-radius:2px;margin-top:8px;overflow:hidden;">';
+    html += '<div style="width:'+pct+'%;height:100%;background:'+t.accent+';border-radius:2px;"></div></div>';
+    html += '<div style="font-size:9px;color:'+TEXT_DIM+';margin-top:4px;">'+unlockedLevels+' / '+totalLevels+' Levels Unlocked</div>';
   }
   html += '</div>';
 
-  skillKeys.forEach(function(exName){
-    var tree = SKILL_TREE[exName];
-    var info = getSkillLevel(exName);
-    var currentLevel = info.level;
+  /* Category columns */
+  var catKeys = ["push","pull","legs","core"];
+  html += '<div style="display:flex;gap:6px;margin-bottom:16px;">';
+  catKeys.forEach(function(catKey){
+    var cat = categories[catKey];
+    if (cat.skills.length === 0) return;
+    html += '<div style="flex:1;min-width:0;">';
+    html += '<div style="text-align:center;font-size:10px;letter-spacing:2px;color:'+cat.color+';margin-bottom:10px;font-weight:bold;">'+cat.label+'</div>';
 
-    html += '<div class="panel" style="margin-bottom:14px;">';
-    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
-    html += '<div class="dim" style="font-size:10px;letter-spacing:2px;">'+tree.skill.toUpperCase()+'</div>';
-    html += '<div style="font-size:9px;color:'+(currentLevel===tree.levels.length?"#39ff88":TEXT_DIM)+';">'+currentLevel+'/'+tree.levels.length+' UNLOCKED</div>';
-    html += '</div>';
-    html += '<div style="font-size:12px;color:#cde3ec;margin-bottom:12px;">'+exName+'</div>';
+    cat.skills.forEach(function(skill, sIdx){
+      var info = getSkillLevel(skill.name);
+      var currentLevel = info.level;
+      var totalLvls = skill.tree.levels.length;
+      var pct = totalLvls > 0 ? Math.round((currentLevel / totalLvls) * 100) : 0;
 
-    if (info.completions > 0) {
-      html += '<div style="display:flex;gap:12px;margin-bottom:12px;font-size:10px;color:'+TEXT_DIM+';">';
-      html += '<span>Total sets: '+info.completions+'</span>';
-      html += '<span>Successful: '+info.successfulCompletions+'</span>';
-      if (info.bestReps > 0) html += '<span>Best reps: '+info.bestReps+'</span>';
-      if (info.bestHold > 0) html += '<span>Best hold: '+info.bestHold+'s</span>';
+      html += '<div class="panel" style="margin-bottom:8px;padding:8px;">';
+
+      /* Skill name + progress */
+      html += '<div style="font-size:10px;color:#cde3ec;margin-bottom:6px;text-align:center;">'+skill.tree.skill+'</div>';
+
+      /* Circular progress indicator */
+      var size = 44;
+      var r = 18;
+      var circ = 2 * Math.PI * r;
+      var offset = circ - (pct / 100) * circ;
+      html += '<div style="display:flex;justify-content:center;margin-bottom:6px;">';
+      html += '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'">';
+      html += '<circle cx="'+size/2+'" cy="'+size/2+'" r="'+r+'" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="3"/>';
+      if (pct > 0) {
+        html += '<circle cx="'+size/2+'" cy="'+size/2+'" r="'+r+'" fill="none" stroke="'+cat.color+'" stroke-width="3" stroke-linecap="round" '+
+          'stroke-dasharray="'+circ+'" stroke-dashoffset="'+offset+'" '+
+          'transform="rotate(-90 '+size/2+' '+size/2+')" style="filter:drop-shadow(0 0 4px '+cat.color+');"/>';
+      }
+      html += '<text x="'+size/2+'" y="'+(size/2+1)+'" text-anchor="middle" dominant-baseline="middle" '+
+        'fill="'+(currentLevel===totalLvls?"#39ff88":currentLevel>0?cat.color:TEXT_DIM)+'" font-size="11" font-weight="bold">'+currentLevel+'/'+totalLvls+'</text>';
+      html += '</svg></div>';
+
+      /* Level dots */
+      html += '<div style="display:flex;justify-content:center;gap:3px;margin-bottom:6px;">';
+      skill.tree.levels.forEach(function(lv, idx){
+        var status = idx < currentLevel ? "unlocked" : idx === currentLevel ? "current" : "locked";
+        var dotColor = status === "unlocked" ? "#39ff88" : status === "current" ? cat.color : "rgba(255,255,255,0.1)";
+        var dotGlow = status === "unlocked" ? "0 0 4px #39ff88" : status === "current" ? "0 0 6px "+cat.color : "none";
+        html += '<div style="width:8px;height:8px;border-radius:50%;background:'+dotColor+';box-shadow:'+dotGlow+';"></div>';
+      });
       html += '</div>';
-    }
 
-    html += '<div style="display:flex;flex-direction:column;gap:0;position:relative;">';
-    tree.levels.forEach(function(lv, idx){
-      var status = idx < currentLevel ? "unlocked" : idx === currentLevel ? "current" : "locked";
-      var bgColor = status === "unlocked" ? "rgba(57,255,136,0.1)" : status === "current" ? "rgba(0,229,255,0.12)" : "rgba(255,255,255,0.02)";
-      var borderColor = status === "unlocked" ? "rgba(57,255,136,0.4)" : status === "current" ? t.accent : "rgba(255,255,255,0.06)";
-      var textColor = status === "locked" ? "rgba(255,255,255,0.25)" : "#dff3fb";
-      var reqParts = lv.req.split(":");
-      var reqType = reqParts[0];
-      var reqVal = reqParts[1];
-      var reqLabel = reqType === "reps" ? reqVal+" reps" : reqType === "hold" ? reqVal+"s hold" : "Special";
-
-      var connector = '';
-      if (idx < tree.levels.length - 1) {
-        var nextStatus = (idx+1) < currentLevel ? "unlocked" : (idx+1) === currentLevel ? "current" : "locked";
-        var lineColor = status === "unlocked" ? "rgba(57,255,136,0.4)" : "rgba(255,255,255,0.08)";
-        connector = '<div style="width:2px;height:14px;background:'+lineColor+';margin-left:18px;"></div>';
+      /* Current level name */
+      if (currentLevel < totalLvls) {
+        var nextLv = skill.tree.levels[currentLevel];
+        html += '<div style="font-size:8px;color:'+cat.color+';text-align:center;">NEXT: '+nextLv.name+'</div>';
+      } else {
+        html += '<div style="font-size:8px;color:#39ff88;text-align:center;">MASTERED</div>';
       }
 
-      html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;background:'+bgColor+';border:1px solid '+borderColor+';position:relative;">';
-      html += '<div style="width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:bold;'+
-        'background:'+(status==="unlocked"?"rgba(57,255,136,0.2)":"rgba(255,255,255,0.05)")+';'+
-        'border:1px solid '+(status==="unlocked"?"#39ff88":status==="current"?t.accent:"rgba(255,255,255,0.1)")+';'+
-        'color:'+(status==="unlocked"?"#39ff88":status==="current"?t.accent:"rgba(255,255,255,0.2)")+';">'+
-        (status==="unlocked"?"&#10003;":(idx+1))+'</div>';
-      html += '<div style="flex:1;">';
-      html += '<div style="font-size:12px;color:'+textColor+';'+(status==="current"?"font-weight:bold;":"")+'">'+lv.name+'</div>';
-      html += '<div style="font-size:9px;color:'+(status==="locked"?"rgba(255,255,255,0.2)":TEXT_DIM)+';margin-top:2px;">'+reqLabel+'</div>';
       html += '</div>';
-      if (status === "unlocked") html += '<div style="font-size:8px;letter-spacing:1px;color:#39ff88;font-weight:bold;">DONE</div>';
-      else if (status === "current") html += '<div style="font-size:8px;letter-spacing:1px;color:'+t.accent+';font-weight:bold;">ACTIVE</div>';
-      else html += '<div style="font-size:8px;letter-spacing:1px;color:rgba(255,255,255,0.15);">LOCKED</div>';
-      html += '</div>';
-      html += connector;
+
+      /* Connector line between skills */
+      if (sIdx < cat.skills.length - 1) {
+        html += '<div style="width:2px;height:10px;background:rgba(255,255,255,0.08);margin:0 auto;"></div>';
+      }
     });
-    html += '</div></div>';
+
+    html += '</div>';
   });
+  html += '</div>';
+
+  /* Exercise detail on tap/click - show which exercise to do */
+  html += '<div class="panel" style="margin-bottom:16px;">';
+  html += '<div class="dim" style="font-size:10px;letter-spacing:2px;margin-bottom:8px;">EXERCISES IN PLAN</div>';
+  catKeys.forEach(function(catKey){
+    var cat = categories[catKey];
+    cat.skills.forEach(function(skill){
+      var info = getSkillLevel(skill.name);
+      var statusColor = info.level === skill.tree.levels.length ? "#39ff88" : info.level > 0 ? cat.color : TEXT_DIM;
+      html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);">';
+      html += '<div style="width:6px;height:6px;border-radius:50%;background:'+statusColor+';"></div>';
+      html += '<div style="flex:1;font-size:11px;color:#cde3ec;">'+skill.name+'</div>';
+      html += '<div style="font-size:9px;color:'+statusColor+';">LVL '+info.level+'</div>';
+      html += '</div>';
+    });
+  });
+  html += '</div>';
 
   html += '</div>';
   return html;

@@ -291,36 +291,62 @@ var SKILL_TREE = {
 
 /* ============================================================
    SKILL TREE NODES (positions, prerequisites, layout)
+   6 categories: H-Push, V-Push, H-Pull, V-Pull, Core, Legs
    ============================================================ */
 var SKILL_NODES = [
   /* Root */
-  { id: "root", x: 200, y: 40, label: "TRAINING", cat: "root", exercise: null, prereqs: [] },
-  /* Category nodes */
-  { id: "cat_push", x: 60, y: 130, label: "PUSH", cat: "push", exercise: null, prereqs: ["root"] },
-  { id: "cat_pull", x: 160, y: 130, label: "PULL", cat: "pull", exercise: null, prereqs: ["root"] },
-  { id: "cat_legs", x: 260, y: 130, label: "LEGS", cat: "legs", exercise: null, prereqs: ["root"] },
-  { id: "cat_core", x: 360, y: 130, label: "CORE", cat: "core", exercise: null, prereqs: ["root"] },
-  /* Push skills */
-  { id: "sk_push_0", x: 60, y: 230, label: "Foundation", cat: "push", exercise: "Incline push-ups", prereqs: ["cat_push"] },
-  { id: "sk_push_1", x: 60, y: 330, label: "Strength", cat: "push", exercise: "Diamond push-ups", prereqs: ["sk_push_0"] },
-  { id: "sk_push_2", x: 60, y: 430, label: "Shoulder", cat: "push", exercise: "Pike push-ups (elevated feet)", prereqs: ["sk_push_0"] },
-  /* Pull skills */
-  { id: "sk_pull_0", x: 160, y: 230, label: "Foundation", cat: "pull", exercise: "Australian pulls (elevated)", prereqs: ["cat_pull"] },
-  { id: "sk_pull_1", x: 160, y: 330, label: "Strength", cat: "pull", exercise: "Band pull-up negatives (5s lower)", prereqs: ["sk_pull_0"] },
-  { id: "sk_pull_2", x: 160, y: 430, label: "Grip", cat: "pull", exercise: "Dead hang", prereqs: ["sk_pull_0"] },
-  /* Legs skills */
-  { id: "sk_legs_0", x: 260, y: 230, label: "Strength", cat: "legs", exercise: "Bulgarian split squats", prereqs: ["cat_legs"] },
-  { id: "sk_legs_1", x: 260, y: 330, label: "Balance", cat: "legs", exercise: "Pistol squat progression", prereqs: ["sk_legs_0"] },
-  { id: "sk_legs_2", x: 260, y: 430, label: "Power", cat: "legs", exercise: "Nordic curl negatives", prereqs: ["sk_legs_0"] },
-  /* Core skills */
-  { id: "sk_core_0", x: 360, y: 230, label: "Foundation", cat: "core", exercise: "Hanging knee raises", prereqs: ["cat_core"] },
-  { id: "sk_core_1", x: 360, y: 330, label: "Hollow", cat: "core", exercise: "Hollow body hold", prereqs: ["sk_core_0"] },
-  { id: "sk_core_2", x: 360, y: 430, label: "Anti-Ext", cat: "core", exercise: "Plank", prereqs: ["sk_core_0"] }
+  { id: "root", x: 400, y: 40, label: "TRAINING", cat: "root", exercise: null, prereqs: [], icon: null },
+
+  /* Category nodes - organic spread */
+  { id: "cat_hpush", x: 120, y: 140, label: "H-PUSH", cat: "hpush", exercise: null, prereqs: ["root"], icon: null },
+  { id: "cat_vpush", x: 350, y: 110, label: "V-PUSH", cat: "vpush", exercise: null, prereqs: ["root"], icon: null },
+  { id: "cat_hpull", x: 580, y: 140, label: "H-PULL", cat: "hpull", exercise: null, prereqs: ["root"], icon: null },
+  { id: "cat_vpull", x: 680, y: 280, label: "V-PULL", cat: "vpull", exercise: null, prereqs: ["root"], icon: null },
+  { id: "cat_core", x: 400, y: 380, label: "CORE", cat: "core", exercise: null, prereqs: ["root"], icon: null },
+  { id: "cat_legs", x: 200, y: 420, label: "LEGS", cat: "legs", exercise: null, prereqs: ["root"], icon: null },
+
+  /* H-Push skills (diagonal down-left) */
+  { id: "sk_hpush_0", x: 60, y: 230, label: "Foundation", cat: "hpush", exercise: "Incline push-ups", prereqs: ["cat_hpush"], icon: "pushup" },
+  { id: "sk_hpush_1", x: 30, y: 320, label: "Strength", cat: "hpush", exercise: "Diamond push-ups", prereqs: ["sk_hpush_0"], icon: "pushup" },
+
+  /* V-Push skills (diagonal up-right) */
+  { id: "sk_vpush_0", x: 320, y: 200, label: "Foundation", cat: "vpush", exercise: "Pike push-ups (elevated feet)", prereqs: ["cat_vpush"], icon: "pike" },
+
+  /* H-Pull skills (diagonal down-right) */
+  { id: "sk_hpull_0", x: 600, y: 230, label: "Foundation", cat: "hpull", exercise: "Australian pulls (elevated)", prereqs: ["cat_hpull"], icon: "row" },
+  { id: "sk_hpull_1", x: 640, y: 320, label: "Strength", cat: "hpull", exercise: "Band pull-up negatives (5s lower)", prereqs: ["sk_hpull_0"], icon: "pullup" },
+
+  /* V-Pull skills (diagonal up-right) */
+  { id: "sk_vpull_0", x: 720, y: 370, label: "Grip", cat: "vpull", exercise: "Dead hang", prereqs: ["cat_vpull"], icon: "hang" },
+
+  /* Core skills (spread below) */
+  { id: "sk_core_0", x: 340, y: 460, label: "Foundation", cat: "core", exercise: "Hanging knee raises", prereqs: ["cat_core"], icon: "legraise" },
+  { id: "sk_core_1", x: 440, y: 460, label: "Hollow", cat: "core", exercise: "Hollow body hold", prereqs: ["sk_core_0"], icon: "hollow" },
+  { id: "sk_core_2", x: 400, y: 540, label: "Anti-Ext", cat: "core", exercise: "Plank", prereqs: ["sk_core_0"], icon: "plank" },
+
+  /* Legs skills (spread below) */
+  { id: "sk_legs_0", x: 140, y: 500, label: "Strength", cat: "legs", exercise: "Bulgarian split squats", prereqs: ["cat_legs"], icon: "squat" },
+  { id: "sk_legs_1", x: 240, y: 500, label: "Balance", cat: "legs", exercise: "Pistol squat progression", prereqs: ["sk_legs_0"], icon: "squat" },
+  { id: "sk_legs_2", x: 190, y: 580, label: "Power", cat: "legs", exercise: "Nordic curl negatives", prereqs: ["sk_legs_0"], icon: "nordic" }
 ];
 
-var SKILL_NODE_SIZE = 48;
-var SKILL_CANVAS_W = 420;
-var SKILL_CANVAS_H = 500;
+/* SVG icon paths for exercise types */
+var SKILL_ICONS = {
+  pushup: '<path d="M8 28 L16 20 L24 28 M12 20 L12 14 M20 20 L20 14 M10 14 L10 10 L14 10 L14 14 M18 14 L18 10 L22 10 L22 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
+  pike: '<path d="M12 28 L16 16 L20 28 M16 16 L16 10 M12 10 L16 10 L20 10 M14 22 L10 22 M18 22 L22 22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
+  row: '<path d="M8 20 L16 16 L24 20 M16 16 L16 24 M12 24 L16 24 L20 24 M10 12 L16 12 L22 12 M10 12 L10 16 M22 12 L22 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
+  pullup: '<path d="M10 10 L22 10 M16 10 L16 16 M12 16 L16 16 L20 16 M16 16 L16 22 M12 22 L16 22 L20 22 M14 22 L14 28 M18 22 L18 28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
+  hang: '<path d="M10 8 L22 8 M16 8 L16 14 M12 14 L16 14 L20 14 M16 14 L16 20 M13 20 L16 20 L19 20 M14 20 L14 28 M18 20 L18 28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
+  legraise: '<path d="M10 8 L22 8 M16 8 L16 14 M12 14 L16 14 L20 14 M16 14 L16 20 M12 20 L12 16 M20 20 L20 16 M13 20 L16 18 L19 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
+  hollow: '<path d="M8 18 Q16 8 24 18 M12 18 L12 22 M20 18 L20 22 M14 22 L14 28 M18 22 L18 28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
+  plank: '<path d="M6 20 L10 20 L10 16 L22 16 L22 20 L26 20 M10 16 L10 12 M22 16 L22 12 M8 12 L8 8 L12 8 L12 12 M20 12 L20 8 L24 8 L24 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
+  squat: '<path d="M16 8 L16 14 M12 14 L16 14 L20 14 M16 14 L16 20 M12 20 L12 28 M20 20 L20 28 M12 20 L8 20 M20 20 L24 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
+  nordic: '<path d="M16 8 L16 14 M12 14 L16 14 L20 14 M16 14 L16 22 M12 22 L16 22 L20 22 M12 22 L10 28 M20 22 L22 28 M8 28 L10 28 L22 28 L24 28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>'
+};
+
+var SKILL_NODE_SIZE = 40;
+var SKILL_CANVAS_W = 800;
+var SKILL_CANVAS_H = 640;
 
 var skillTreeState = { zoom: 1, panX: 0, panY: 0, selectedNode: null, dragging: false, lastX: 0, lastY: 0 };
 
@@ -329,9 +355,12 @@ function getNodeState(nodeId) {
   if (!node) return "locked";
   if (node.cat === "root") return "root";
   if (!node.exercise) return "category";
+  /* Check if user has manually set status */
+  var manualStatus = state.skillStatus && state.skillStatus[node.exercise];
+  if (manualStatus) return manualStatus;
+  /* Auto-detect from logs */
   var info = getSkillLevel(node.exercise);
   if (info.level === 0) {
-    /* Check if all prereqs are completed */
     var prereqsMet = node.prereqs.every(function(pid){
       var pn = SKILL_NODES.find(function(n){ return n.id === pid; });
       if (!pn || !pn.exercise) return true;
@@ -346,14 +375,14 @@ function getNodeState(nodeId) {
 }
 
 function getNodeColor(nodeId) {
-  var state = getNodeState(nodeId);
+  var state2 = getNodeState(nodeId);
   var node = SKILL_NODES.find(function(n){ return n.id === nodeId; });
-  var catColors = { push: "#ff6b6b", pull: "#4ecdc4", legs: "#ffd93d", core: "#6bcb77" };
-  if (state === "root") return theme().accent;
-  if (state === "category") return catColors[node.cat] || "#cde3ec";
-  if (state === "completed") return "#39ff88";
-  if (state === "active") return catColors[node.cat] || "#60a5fa";
-  if (state === "available") return "#60a5fa";
+  var catColors = { hpush: "#ff6b9d", vpush: "#ff6b9d", hpull: "#4ecdc4", vpull: "#4ecdc4", core: "#4ecdc4", legs: "#4ecdc4" };
+  if (state2 === "root") return theme().accent;
+  if (state2 === "category") return catColors[node.cat] || "#cde3ec";
+  if (state2 === "completed") return "#b8c44a";
+  if (state2 === "active") return catColors[node.cat] || "#ff6b9d";
+  if (state2 === "available") return "#60a5fa";
   return "rgba(255,255,255,0.15)";
 }
 
@@ -629,7 +658,8 @@ var state = {
   beepFired: {},
   measurementModal: null,
   measurements: [],
-  exerciseSuggestions: {}
+  exerciseSuggestions: {},
+  skillStatus: {}
 };
 (function loadAll(){
   var raw = Storage.get("workout-history");
@@ -661,6 +691,8 @@ var state = {
   state.measurements = rawMeasurements ? JSON.parse(rawMeasurements) : [];
   var rawSuggestions = Storage.get("exercise-suggestions");
   state.exerciseSuggestions = rawSuggestions ? JSON.parse(rawSuggestions) : {};
+  var rawSkillStatus = Storage.get("skill-status");
+  state.skillStatus = rawSkillStatus ? JSON.parse(rawSkillStatus) : {};
   restoreSession();
 })();
 
@@ -2265,6 +2297,12 @@ function selectSkillNode(id) {
   skillTreeState.selectedNode = skillTreeState.selectedNode === id ? null : id;
   render();
 }
+function setSkillStatus(exercise, status) {
+  if (!state.skillStatus) state.skillStatus = {};
+  state.skillStatus[exercise] = status;
+  Storage.set("skill-status", state.skillStatus);
+  render();
+}
 function skillZoomIn() {
   skillTreeState.zoom = Math.min(3, skillTreeState.zoom * 1.3);
   render();
@@ -2335,8 +2373,8 @@ function initSkillTreeEvents() {
     if (!ss.dragging) return;
     var dx = (e.clientX - ss.lastX) / ss.zoom;
     var dy = (e.clientY - ss.lastY) / ss.zoom;
-    ss.panX -= dx;
-    ss.panY -= dy;
+    ss.panX += dx;
+    ss.panY += dy;
     ss.lastX = e.clientX;
     ss.lastY = e.clientY;
     var svg = document.getElementById("skillCanvas");
@@ -2368,8 +2406,8 @@ function initSkillTreeEvents() {
     if (e.touches.length === 1 && ss.dragging) {
       var dx = (e.touches[0].clientX - ss.lastX) / ss.zoom;
       var dy = (e.touches[0].clientY - ss.lastY) / ss.zoom;
-      ss.panX -= dx;
-      ss.panY -= dy;
+      ss.panX += dx;
+      ss.panY += dy;
       ss.lastX = e.touches[0].clientX;
       ss.lastY = e.touches[0].clientY;
       var svg = document.getElementById("skillCanvas");

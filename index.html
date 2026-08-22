@@ -2338,13 +2338,13 @@ document.addEventListener("click", function(e){
   if (!e.target.closest(".theme-menu") && !e.target.closest('[onclick*="toggleThemeMenu"]')) state.themePickerOpen = false;
 });
 
-/* Skill tree pan/zoom handlers - initialized ONCE */
-var _skillEventsInit = false;
+/* Skill tree pan/zoom handlers - re-attach when canvas DOM changes */
+var _skillCanvasEl = null;
 function initSkillTreeEvents() {
-  if (_skillEventsInit) return;
   var canvas = document.getElementById("skillCanvas");
   if (!canvas) return;
-  _skillEventsInit = true;
+  if (_skillCanvasEl === canvas) return;
+  _skillCanvasEl = canvas;
   var ss = skillTreeState;
 
   function updateViewBox() {

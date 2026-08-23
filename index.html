@@ -79,6 +79,10 @@ var TEXT_DIM = "#6c8a99";
    WORKOUT DATA (base defaults - overridden per-exercise via state.overrides)
    ============================================================ */
 var DAY_ORDER = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+function localISO(d) {
+  var pad = function(n){ return String(n).padStart(2,"0"); };
+  return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate());
+}
 function T(s){ return { type: "time", duration: s }; }
 function R(label){ return { type: "reps", label: label }; }
 
@@ -247,7 +251,10 @@ var MUSCLE_COLORS = { chest:"#ff4d5e", shoulders:"#ff9500", triceps:"#ffd60a", b
    ============================================================ */
 function overrideKey(day, section, idx){ return day + "|" + section + "|" + idx; }
 function getEffective(day, section, idx) {
-  var base = section === "WARMUP" ? PLAN[day].warmup[idx] : PLAN[day].main[idx];
+  var base;
+  if (section === "WARMUP") base = PLAN[day].warmup[idx];
+  else if (section === "COOLDOWN") base = PLAN[day].cooldown[idx];
+  else base = PLAN[day].main[idx];
   var ov = state.overrides[overrideKey(day, section, idx)];
   if (!ov) return base;
   return Object.assign({}, base, ov);
@@ -434,7 +441,7 @@ function icoClock(c){ return '<svg width="14" height="14" viewBox="0 0 24 24" fi
    STATE
    ============================================================ */
 var todayName = DAY_ORDER[new Date().getDay()];
-var todayISO = new Date().toISOString().slice(0,10);
+var todayISO = localISO(new Date());
 var state = {
   themeKey: "cyan",
   alertMode: "both",
@@ -512,7 +519,7 @@ function saveHistory(nextArr) {
   Storage.set("workout-history", JSON.stringify(nextArr));
 }
 function logCompletion(day, type) {
-  var record = { date: new Date().toISOString().slice(0,10), day: day, type: type, at: new Date().toISOString() };
+  var record = { date: localISO(new Date()), day: day, type: type, at: new Date().toISOString() };
   saveHistory(state.history.concat([record]));
 }
 function recordExerciseHistory(day, cutoffIdx) {
@@ -523,7 +530,7 @@ function recordExerciseHistory(day, cutoffIdx) {
     if (!byName[step.name]) byName[step.name] = { count: 0, total: step.setTotal };
     byName[step.name].count++;
   });
-  var date = new Date().toISOString().slice(0,10);
+  var date = localISO(new Date());
   var entries = state.exerciseHistory.slice();
   Object.keys(byName).forEach(function(name){
     entries.push({ date: date, day: day, exercise: name, setsCompleted: byName[name].count, setsTotal: byName[name].total });
@@ -617,7 +624,7 @@ function getPrevTrainingDate(iso) {
   for (var i = 1; i <= 3; i++) {
     d.setDate(d.getDate() - 1);
     var dow = d.getDay();
-    if (dow !== 0 && dow !== 3) return d.toISOString().slice(0,10);
+    if (dow !== 0 && dow !== 3) return localISO(d);
   }
   return null;
 }
@@ -706,7 +713,7 @@ function recordSetLog(difficulty) {
     actualDuration = isNaN(v) ? cur.duration : Math.min(v, cur.duration);
   }
   var entry = {
-    date: new Date().toISOString().slice(0,10), day: state.selectedDay,
+    date: localISO(new Date()), day: state.selectedDay,
     exercise: cur.name, section: cur.section, setIndex: cur.setIndex, setTotal: cur.setTotal,
     type: cur.type, target: cur.type === "time" ? cur.duration : cur.repsLabel,
     actualReps: actualReps, actualDuration: actualDuration, difficulty: difficulty
@@ -777,7 +784,7 @@ function goToNextStep() {
   if (state.stepIdx >= state.queue.length - 1) {
     logCompletion(state.selectedDay, "workout");
     recordExerciseHistory(state.selectedDay, state.queue.length);
-    recordDayCompletion(new Date().toISOString().slice(0,10), 100);
+    recordDayCompletion(localISO(new Date()), 100);
     releaseWakeLock();
     state.view = "complete";
     Storage.set("active-session", "");
@@ -800,7 +807,7 @@ function exitSession() {
   clearTimeout(timerId);
   var percent = sessionProgressPercent();
   if (state.queue.length > 0) {
-    recordDayCompletion(new Date().toISOString().slice(0,10), percent);
+    recordDayCompletion(localISO(new Date()), percent);
     if (percent >= 75) {
       logCompletion(state.selectedDay, "workout");
       recordExerciseHistory(state.selectedDay, state.stepIdx);
@@ -1027,6 +1034,8 @@ function exportData() {
     personalRecords: state.personalRecords,
     restAdjustments: state.restAdjustments,
     cooldownSkip: state.cooldownSkip,
+    measurements: state.measurements,
+    exerciseSuggestions: state.exerciseSuggestions,
     exportedAt: new Date().toISOString()
   }, null, 2);
   var blob = new Blob([payload], { type: "application/json" });
@@ -1056,6 +1065,8 @@ function handleImportFile(e) {
       if (data.personalRecords) { state.personalRecords = data.personalRecords; Storage.set("personal-records", JSON.stringify(data.personalRecords)); }
       if (data.restAdjustments) { state.restAdjustments = data.restAdjustments; Storage.set("rest-adjustments", JSON.stringify(data.restAdjustments)); }
       if (data.cooldownSkip != null) { state.cooldownSkip = !!data.cooldownSkip; Storage.set("cooldown-skip", JSON.stringify(state.cooldownSkip)); }
+      if (Array.isArray(data.measurements)) { state.measurements = data.measurements; Storage.set("body-measurements", JSON.stringify(data.measurements)); }
+      if (data.exerciseSuggestions) { state.exerciseSuggestions = data.exerciseSuggestions; Storage.set("exercise-suggestions", JSON.stringify(data.exerciseSuggestions)); }
       state.boulderLoggedToday = state.history.some(function(r){ return r.date === todayISO && r.type === "boulder"; });
       render();
       alert("Import complete.");
@@ -1074,7 +1085,7 @@ function computeStats() {
   var last7 = [];
   for (var i = 6; i >= 0; i--) {
     var d = new Date(); d.setDate(d.getDate() - i);
-    var iso = d.toISOString().slice(0,10);
+    var iso = localISO(d);
     var dName = DAY_ORDER[d.getDay()];
     var isRestDay = PLAN[dName].mode === "rest";
     var hasLog = state.history.some(function(r){ return r.date === iso; });
@@ -1083,7 +1094,7 @@ function computeStats() {
   var last30 = [];
   for (var k = 29; k >= 0; k--) {
     var d2 = new Date(); d2.setDate(d2.getDate() - k);
-    var iso2 = d2.toISOString().slice(0,10);
+    var iso2 = localISO(d2);
     var dName2 = DAY_ORDER[d2.getDay()];
     var mode2 = PLAN[dName2].mode;
     var isRestDay2 = mode2 === "rest";
@@ -1519,7 +1530,7 @@ function renderStats() {
   html += '</div></div>';
 
   /* Tab navigation */
-  var tabs = ["monthly","progression","exercise","measurements","skills","muscles"];
+  var tabs = ["monthly","progression","exercise","measurements","muscles"];
   var tabLabels = { monthly: "MONTHLY", progression: "PROGRESSION", exercise: "EXERCISE LOG", measurements: "BODY", muscles: "MUSCLES" };
   html += '<div class="panel" style="margin-bottom:16px;padding:6px;display:flex;gap:4px;">';
   tabs.forEach(function(tab){
@@ -1605,8 +1616,8 @@ function renderStats() {
         weekStart.setDate(weekStart.getDate() - weekStart.getDay() - (w * 7));
         var weekEnd = new Date(weekStart);
         weekEnd.setDate(weekEnd.getDate() + 6);
-        var ws = weekStart.toISOString().slice(0,10);
-        var we = weekEnd.toISOString().slice(0,10);
+        var ws = localISO(weekStart);
+        var we = localISO(weekEnd);
         var wLabel = (weekStart.getMonth()+1) + "/" + weekStart.getDate();
         weekData[w] = { label: wLabel, start: ws, end: we, exercises: {} };
       }
@@ -1726,17 +1737,16 @@ function renderStats() {
     }
   }
 
-  /* TAB: Skill Progression Trees */
   /* TAB: Muscle Heat Map */
   if (state.statsTab === "muscles") {
     /* Calculate weekly volume per muscle group */
     var now = new Date();
     var weekStart = new Date(now);
     weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-    var weekStartISO = weekStart.toISOString().slice(0,10);
+    var weekStartISO = localISO(weekStart);
     var weekEnd = new Date(weekStart);
     weekEnd.setDate(weekEnd.getDate() + 6);
-    var weekEndISO = weekEnd.toISOString().slice(0,10);
+    var weekEndISO = localISO(weekEnd);
 
     var muscleVolume = {};
     MUSCLE_GROUPS.forEach(function(mg){ muscleVolume[mg] = 0; });

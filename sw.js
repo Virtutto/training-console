@@ -1,4 +1,4 @@
-const CACHE_NAME = "training-console-v3";
+const CACHE_NAME = "training-console-v4";
 const ASSETS = ["/training-console/"];
 
 self.addEventListener("install", e => {
@@ -16,6 +16,17 @@ self.addEventListener("activate", e => {
 });
 
 self.addEventListener("fetch", e => {
+  // Network-first for page navigations: fresh HTML wins, cache only as offline fallback.
+  if (e.request.mode === "navigate") {
+    e.respondWith(
+      fetch(e.request).then(resp => {
+        const clone = resp.clone();
+        caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+        return resp;
+      }).catch(() => caches.match(e.request))
+    );
+    return;
+  }
   e.respondWith(
     caches.match(e.request).then(r => r || fetch(e.request).then(resp => {
       const clone = resp.clone();

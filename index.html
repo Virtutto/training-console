@@ -211,6 +211,7 @@ var PLAN = {
   }
 };
 var WINDUP_SECONDS = 5;
+var APP_VERSION = "v7.8";
 
 /* ============================================================
    MUSCLE GROUP TAGS (exercise -> muscle groups + weight)
@@ -428,7 +429,32 @@ document.addEventListener("visibilitychange", function(){
 
 /* Service Worker Registration for offline PWA */
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js").catch(function(){});
+  navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).catch(function(){});
+}
+
+/* CHECK FOR UPDATE: force the phone to fetch the newest version after a push.
+   updateViaCache:"none" means the browser revalidates sw.js every time (instead of
+   caching it for ~24h), so a pushed update is picked up immediately. */
+function checkForUpdate() {
+  if (!("serviceWorker" in navigator) || typeof navigator.serviceWorker.getRegistration !== "function") {
+    return;
+  }
+  var reloaded = false;
+  function doReload() {
+    if (reloaded) return;
+    reloaded = true;
+    window.location.reload();
+  }
+  /* If a (new) service worker takes control of this page, reload to run the fresh code. */
+  navigator.serviceWorker.addEventListener("controllerchange", doReload);
+  navigator.serviceWorker.getRegistration().then(function(reg) {
+    if (reg && typeof reg.update === "function") {
+      reg.update();
+    }
+    /* Fallback: even if we are already on the latest SW (no controllerchange fires),
+       reload shortly so any cached assets are refreshed. */
+    setTimeout(doReload, 400);
+  }).catch(function(){ setTimeout(doReload, 400); });
 }
 
 /* ============================================================
@@ -1195,6 +1221,8 @@ function renderSettingsMenu() {
   modes.forEach(function(m){
     html += '<button class="theme-opt" onclick="selectAlertMode(\''+m[0]+'\')" style="background:'+(m[0]===state.alertMode?'rgba(255,255,255,0.06)':'transparent')+';color:'+(m[0]===state.alertMode?t.accent:'#dff3fb')+';">'+m[1]+'</button>';
   });
+  html += '<div class="dim" style="font-size:9px;letter-spacing:1px;padding:8px 10px 4px;border-top:1px solid rgba(255,255,255,0.06);margin-top:6px;">VERSION '+APP_VERSION+'</div>';
+  html += '<button class="theme-opt" onclick="checkForUpdate()" style="color:'+t.accent+';">CHECK FOR UPDATE</button>';
   return html + '</div>';
 }
 

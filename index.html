@@ -306,18 +306,22 @@ function buildQueueNoWarmup(day) {
   return queue;
 }
 
-// QUICK START: one set per MAIN exercise, no warmup/cooldown.
-function buildQueueQuick(day) {
+// CUSTOM START: user-chosen set count (1-5) per MAIN exercise, no warmup/cooldown.
+function buildQueueCustom(day, sets) {
   var plan = PLAN[day];
   if (!plan || plan.mode !== "session") return [];
+  var n = parseInt(sets, 10);
+  if (!(n >= 1 && n <= 5)) n = 1;
   var queue = [];
   plan.main.forEach(function(ex, idx) {
     var eff = getEffective(day, "MAIN", idx);
-    queue.push({
-      section: "MAIN", name: eff.name, setIndex: 1, setTotal: 1,
-      type: eff.type, duration: eff.duration, repsLabel: eff.label,
-      restAfter: eff.rest || 0
-    });
+    for (var i = 0; i < n; i++) {
+      queue.push({
+        section: "MAIN", name: eff.name, setIndex: i + 1, setTotal: n,
+        type: eff.type, duration: eff.duration, repsLabel: eff.label,
+        restAfter: eff.rest || 0
+      });
+    }
   });
   return queue;
 }
@@ -516,6 +520,8 @@ var state = {
   restAdjustments: {},
   lastPR: null,
   cooldownSkip: false,
+  customSets: 1,
+  customPickerOpen: false,
   beepFired: {},
   measurementModal: null,
   measurements: [],
@@ -547,6 +553,9 @@ var state = {
   state.restAdjustments = rawAdj ? JSON.parse(rawAdj) : {};
   var rawCooldownSkip = Storage.get("cooldown-skip");
   if (rawCooldownSkip === "true") state.cooldownSkip = true;
+  var rawCustomSets = Storage.get("custom-sets");
+  var cs = parseInt(rawCustomSets, 10);
+  state.customSets = (cs >= 1 && cs <= 5) ? cs : 1;
   var rawMeasurements = Storage.get("body-measurements");
   state.measurements = rawMeasurements ? JSON.parse(rawMeasurements) : [];
   var rawSuggestions = Storage.get("exercise-suggestions");
@@ -617,8 +626,19 @@ function startSession() {
   var q = state.warmupSkip ? buildQueueNoWarmup(state.selectedDay) : buildQueue(state.selectedDay);
   beginSession(q);
 }
-function startQuickSession() {
-  beginSession(buildQueueQuick(state.selectedDay));
+function toggleCustomPicker() {
+  state.customPickerOpen = !state.customPickerOpen;
+  render();
+}
+function startCustomSession() {
+  beginSession(buildQueueCustom(state.selectedDay, state.customSets));
+}
+function pickCustomSets(n) {
+  n = parseInt(n, 10);
+  if (!(n >= 1 && n <= 5)) n = 1;
+  state.customSets = n;
+  Storage.set("custom-sets", String(n));
+  beginSession(buildQueueCustom(state.selectedDay, n));
 }
 function toggleWarmupSkip() {
   state.warmupSkip = !state.warmupSkip;
@@ -1300,9 +1320,17 @@ function renderOverview() {
     }
     html += '</div>';
     var displayQ = state.warmupSkip ? buildQueueNoWarmup(state.selectedDay) : q;
-    var quickQ = buildQueueQuick(state.selectedDay);
+    var customQ = buildQueueCustom(state.selectedDay, state.customSets);
     html += '<button class="bigbtn" onclick="startSession()" style="background:'+t.accent+';color:#02080a;box-shadow:0 0 24px '+t.glow+';">'+icoPlay("#02080a")+' INITIATE ('+displayQ.length+' STEPS)</button>';
-    html += '<button class="bigbtn" onclick="startQuickSession()" style="margin-top:10px;background:rgba(255,255,255,0.06);color:'+t.accent+';border:1px solid '+t.accent+';box-shadow:0 0 16px '+t.glow+';">'+icoPlay(t.accent)+' QUICK START ('+quickQ.length+' x 1 SET)</button>';
+    html += '<button class="bigbtn" onclick="toggleCustomPicker()" style="margin-top:10px;background:rgba(255,255,255,0.06);color:'+t.accent+';border:1px solid '+t.accent+';box-shadow:0 0 16px '+t.glow+';">'+icoPlay(t.accent)+' CUSTOM START ('+customQ.length+' x '+state.customSets+' SET)</button>';
+    if (state.customPickerOpen) {
+      html += '<div style="display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap;">';
+      for (var cs = 1; cs <= 5; cs++) {
+        var active = cs === state.customSets;
+        html += '<button onclick="pickCustomSets('+cs+')" style="width:44px;height:44px;border-radius:10px;border:1px solid '+(active?t.accent:'rgba(255,255,255,0.12)')+';background:'+(active?t.glow:'rgba(255,255,255,0.04)')+';color:'+(active?t.accent:'#cde3ec')+';font-size:15px;font-weight:600;">'+cs+'</button>';
+      }
+      html += '</div>';
+    }
   } else if (dayPlan.mode === "boulder") {
     html += '<button style="width:100%;padding:20px;border-radius:12px;background:'+(state.boulderLoggedToday?t.glow:'rgba(12,22,32,0.55)')+';border:1px solid '+(state.boulderLoggedToday?t.accent:'rgba(255,255,255,0.08)')+';color:#dff3fb;display:flex;align-items:center;justify-content:center;gap:10px;font-size:14px;" onclick="toggleBoulder()">'+
       (state.boulderLoggedToday ? icoCheck(t.accent) : '<span style="width:18px;height:18px;border-radius:4px;border:1px solid '+TEXT_DIM+';display:inline-block;"></span>')+

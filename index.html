@@ -1931,6 +1931,7 @@ document.addEventListener("click", function(e){
   if (!e.target.closest(".theme-menu") && !e.target.closest('[onclick*="toggleThemeMenu"]')) state.themePickerOpen = false;
 });
 
+render();
 if (state.view === "active") runTimer();
 </script>
 </body>

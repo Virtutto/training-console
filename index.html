@@ -88,33 +88,33 @@ function R(label){ return { type: "reps", label: label }; }
 
 var PLAN = {
   Monday: { mode: "boulder", title: "BOULDERING", subtitle: "Primary pull/grip stimulus - log only" },
-  Sunday: { mode: "rest", title: "REST", subtitle: "Recovery day - no session" },
-  Tuesday: {
-    mode: "session", title: "PUSH FOUNDATION",
-    warmup: [
-      Object.assign({name:"Jump rope / jog in place"}, T(90)),
-      Object.assign({name:"Arm circles (fwd/back)"}, T(30)),
-      Object.assign({name:"Wrist circles + floor rock"}, T(60)),
-      Object.assign({name:"Scapular push-ups"}, R("10 reps")),
-      Object.assign({name:"Slow shoulder CARs"}, T(45)),
-      Object.assign({name:"Knee push-ups (easy)"}, R("8 reps"))
-    ],
-    main: [
-      Object.assign({name:"Incline push-ups", sets:3, rest:90}, R("8-10 reps")),
-      Object.assign({name:"Pike push-ups (elevated feet)", sets:3, rest:90}, R("6-8 reps")),
-      Object.assign({name:"Dip negatives (3-5s lower)", sets:3, rest:120}, R("5 reps")),
-      Object.assign({name:"Diamond push-ups", sets:3, rest:90}, R("MAX")),
-      Object.assign({name:"Hollow body hold", sets:3, rest:60}, T(25))
-    ],
-    cooldown: [
-      Object.assign({name:"Shoulder cross-body stretch"}, T(30)),
-      Object.assign({name:"Tricep overhead stretch"}, T(30)),
-      Object.assign({name:"Wrist flexor stretch"}, T(30)),
-      Object.assign({name:"Chest doorway stretch"}, T(30))
-    ]
+  Monday: { mode: "session", title: "PUSH + HANDSTAND", subtitle: "Target: handstand proficiency",
+    warmup: [ Object.assign({name:"Shoulder CARs"}, T(90)), Object.assign({name:"Wrist prep + mobility"}, T(60)), Object.assign({name:"Scapular push-ups"}, R("10 reps")), Object.assign({name:"Hollow hold light"}, T(20)) ],
+    main: [ Object.assign({name:"Wall handstand hold", sets:4, rest:90}, T(15)), Object.assign({name:"Pike push-ups (elevated feet)", sets:3, rest:90}, R("6-8 reps")), Object.assign({name:"Diamond push-ups", sets:3, rest:75}, R("8-10 reps")) ],
+    cooldown: [ Object.assign({name:"Shoulder stretch"}, T(30)), Object.assign({name:"Wrist stretch"}, T(30)) ]
   },
-  Wednesday: {
-    mode: "session", title: "LEGS + CORE",
+  Tuesday: { mode: "boulder", title: "BOULDERING", subtitle: "Bouldering only - no bar exercises" },
+  Wednesday: { mode: "session", title: "LEGS + PISTOL SQUAT", subtitle: "Target: pistol squat proficiency",
+    warmup: [ Object.assign({name:"Leg swings (front-back/side-side)"}, R("10 each")), Object.assign({name:"Bodyweight squats"}, R("10 reps")), Object.assign({name:"Ankle mobility"}, T(45)) ],
+    main: [ Object.assign({name:"Pistol squat progression", sets:5, rest:90}, R("3-5/leg")), Object.assign({name:"Bulgarian split squats", sets:3, rest:75}, R("8/leg")), Object.assign({name:"Hollow body hold", sets:3, rest:60}, T(30)) ],
+    cooldown: [ Object.assign({name:"Hip flexor stretch"}, T(30)), Object.assign({name:"Quad stretch"}, T(30)), Object.assign({name:"Hamstring stretch"}, T(30)) ]
+  },
+  Thursday: { mode: "session", title: "PULL + FRONT LEVER", subtitle: "Target: front lever proficiency",
+    warmup: [ Object.assign({name:"Scapular pull-ups"}, R("10 reps")), Object.assign({name:"Dead hang (light)"}, T(20)), Object.assign({name:"Hollow hold"}, T(15)) ],
+    main: [ Object.assign({name:"Tuck front lever holds", sets:5, rest:90}, T(10)), Object.assign({name:"Scapular pull-ups", sets:3, rest:60}, R("10 reps")), Object.assign({name:"Hollow body hold", sets:3, rest:60}, T(30)) ],
+    cooldown: [ Object.assign({name:"Lat stretch"}, T(30)), Object.assign({name:"Shoulder stretch"}, T(30)) ]
+  },
+  Friday: { mode: "session", title: "PUSH (NO BARS)", subtitle: "No bar exercises",
+    warmup: [ Object.assign({name:"Shoulder CARs"}, T(60)), Object.assign({name:"Wrist prep"}, T(60)), Object.assign({name:"Hollow hold light"}, T(20)) ],
+    main: [ Object.assign({name:"Pike push-ups (elevated feet)", sets:4, rest:90}, R("6-8 reps")), Object.assign({name:"Diamond push-ups", sets:4, rest:75}, R("8-10 reps")), Object.assign({name:"Hollow body hold", sets:3, rest:60}, T(40)) ],
+    cooldown: [ Object.assign({name:"Chest doorway stretch"}, T(30)), Object.assign({name:"Tricep stretch"}, T(30)) ]
+  },
+  Saturday: { mode: "session", title: "PULL + FRONT LEVER (NO BARS)", subtitle: "No bar exercises",
+    warmup: [ Object.assign({name:"Scapular mobility"}, T(60)), Object.assign({name:"Hollow hold light"}, T(20)) ],
+    main: [ Object.assign({name:"Tuck front lever holds", sets:4, rest:90}, T(10)), Object.assign({name:"Scapular push-ups", sets:3, rest:60}, R("12 reps")), Object.assign({name:"Hollow body hold", sets:4, rest:60}, T(35)) ],
+    cooldown: [ Object.assign({name:"Lat stretch"}, T(30)), Object.assign({name:"Childs pose"}, T(30)) ]
+  },
+  Sunday: { mode: "rest", title: "REST", subtitle: "Recovery day - no session" }
     warmup: [
       Object.assign({name:"Jog / jumping jacks"}, T(90)),
       Object.assign({name:"Leg swings (front-back, side-side)"}, R("10 each leg")),

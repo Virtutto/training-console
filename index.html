@@ -174,7 +174,7 @@ var PLAN = {
   }
 };
 var WINDUP_SECONDS = 5;
-var APP_VERSION = "v7.13";
+var APP_VERSION = "v7.14";
 
 /* ============================================================
    MUSCLE GROUP TAGS (exercise -> muscle groups + weight)
@@ -481,6 +481,9 @@ var state = {
   measurementModal: null,
   measurements: [],
   exerciseSuggestions: {},
+  calibrationLog: [],
+  calib: null,
+  calibResultView: null,
 };
 (function loadAll(){
   var raw = Storage.get("workout-history");
@@ -515,6 +518,17 @@ var state = {
   state.measurements = rawMeasurements ? JSON.parse(rawMeasurements) : [];
   var rawSuggestions = Storage.get("exercise-suggestions");
   state.exerciseSuggestions = rawSuggestions ? JSON.parse(rawSuggestions) : {};
+  var rawCalLog = Storage.get("calibration-log");
+  state.calibrationLog = rawCalLog ? JSON.parse(rawCalLog) : [];
+  var rawCalSession = Storage.get("calibration-session");
+  if (rawCalSession) {
+    try { state.calib = JSON.parse(rawCalSession); } catch(e) { state.calib = null; }
+  }
+  /* Only restore calibration runs started today - stale ones get discarded */
+  if (state.calib && (state.calib.date !== todayISO || state.calib.phase === "done" || state.calib.viewOnly)) {
+    state.calib = null;
+    Storage.set("calibration-session", "");
+  }
   restoreSession();
 })();
 
@@ -1059,6 +1073,7 @@ function exportData() {
     cooldownSkip: state.cooldownSkip,
     measurements: state.measurements,
     exerciseSuggestions: state.exerciseSuggestions,
+    calibrationLog: state.calibrationLog,
     exportedAt: new Date().toISOString()
   }, null, 2);
   var blob = new Blob([payload], { type: "application/json" });
@@ -1090,6 +1105,7 @@ function handleImportFile(e) {
       if (data.cooldownSkip != null) { state.cooldownSkip = !!data.cooldownSkip; Storage.set("cooldown-skip", JSON.stringify(state.cooldownSkip)); }
       if (Array.isArray(data.measurements)) { state.measurements = data.measurements; Storage.set("body-measurements", JSON.stringify(data.measurements)); }
       if (data.exerciseSuggestions) { state.exerciseSuggestions = data.exerciseSuggestions; Storage.set("exercise-suggestions", JSON.stringify(data.exerciseSuggestions)); }
+      if (Array.isArray(data.calibrationLog)) { state.calibrationLog = data.calibrationLog; Storage.set("calibration-log", JSON.stringify(data.calibrationLog)); }
       state.boulderLoggedToday = state.history.some(function(r){ return r.date === todayISO && r.type === "boulder"; });
       render();
       alert("Import complete.");
@@ -1099,6 +1115,488 @@ function handleImportFile(e) {
   };
   reader.readAsText(file);
   e.target.value = "";
+}
+
+/* ============================================================
+   CALIBRATION BATTERY (9-test, one-shot data collection)
+   Deliberately parallel to the workout engine: a battery run must
+   NEVER touch PLAN, day completion, PRs, set logs or workout history.
+   Spec: docs/superpowers/specs/2026-10-15-calibration-logger-design.md
+   ============================================================ */
+var BATTERY = [
+  { id: "handstand", n: 1, name: "Handstand hold", input: "hold", attempts: 2,
+    cues: "Chest or back to the wall, body tight, ribs down. Stop the clock the moment form breaks. Best of 2 attempts.",
+    variants: ["chest-to-wall", "back-to-wall", "wall plank"], restAfter: 180 },
+  { id: "tucklever", n: 2, name: "Tuck front lever hold", input: "hold", attempts: 1,
+    cues: "Scapulae pulled down and back, flat lower back. Stop the clock when the hips drop.",
+    variants: ["tuck", "band-assisted tuck", "one-leg tuck"], restAfter: 180 },
+  { id: "pike", n: 3, name: "Elevated pike push-up", input: "reps", attempts: 1,
+    cues: "Feet elevated, head to the floor each rep, full lockout. Max clean reps.",
+    variants: ["feet-elevated", "floor", "knees"], restAfter: 180 },
+  { id: "diamond", n: 4, name: "Diamond push-up", input: "reps", attempts: 1,
+    cues: "Full range, elbows tracking back over the hands. Max clean reps.",
+    variants: ["full", "knee", "incline"], restAfter: 240 },
+  { id: "pullups", n: 5, name: "Strict pull-ups", input: "reps", attempts: 1,
+    cues: "Dead hang start, chin over the bar, no kipping. If it is under 3, switch variant to ring rows and log those instead.",
+    variants: ["strict", "band-assisted", "ring rows"], restAfter: 180 },
+  { id: "scapular", n: 6, name: "Scapular pull-ups", input: "reps", attempts: 1,
+    cues: "Dead hang, shrug the shoulder blades down and together, 2s hold at the top of each rep.",
+    variants: ["full hang", "feet-assisted"], restAfter: 180 },
+  { id: "hollow", n: 7, name: "Hollow body hold", input: "hold", attempts: 1,
+    cues: "Lower back glued to the floor. Stop the clock the moment it lifts.",
+    variants: ["arms overhead", "arms at sides", "knees bent"], restAfter: 180 },
+  { id: "pistol", n: 8, name: "Pistol squat", input: "perleg", attempts: 1,
+    cues: "No bouncing off the bottom, heel down. Max controlled reps per leg.",
+    variants: ["full", "heel-elevated", "box", "assisted"], restAfter: 0 },
+  { id: "bulgarian", n: 9, name: "Bulgarian split squat", input: "perleg", attempts: 1,
+    cues: "Rear foot on a chair or box if that is how you normally do it. Do this straight after test 8. Max reps per leg.",
+    variants: ["feet elevated", "floor"], restAfter: 0 }
+];
+
+var calibTimerId = null;
+
+function saveCalibState() {
+  if (!state.calib || state.calib.phase === "done" || state.calib.viewOnly) {
+    try { Storage.set("calibration-session", ""); } catch(e) {}
+    return;
+  }
+  try { Storage.set("calibration-session", JSON.stringify(state.calib)); } catch(e) {}
+}
+
+function startCalibration() {
+  if (!state.calib) {
+    state.calib = { date: todayISO, stepIdx: 0, attempt: 1, phase: "intro", variants: {}, results: {},
+      effort: "", notes: "", err: "", paused: false, clockStart: null, clockAtPause: null, pausedAccum: 0,
+      restEnd: null, restTotal: 0, secondsLeft: 0, warningShown: false, showWarn: false, viewOnly: false };
+  }
+  state.view = "calibration";
+  requestWakeLock();
+  render();
+}
+
+function exitCalibration() {
+  clearTimeout(calibTimerId);
+  if (state.calib && (state.calib.phase === "done" || state.calib.viewOnly)) {
+    state.calib = null;
+    state.calibResultView = null;
+  }
+  releaseWakeLock();
+  state.view = "overview";
+  render();
+}
+
+function calibDiscard() {
+  state.calib = null;
+  Storage.set("calibration-session", "");
+  render();
+}
+
+function calibBegin() {
+  var c = state.calib;
+  if (!c) return;
+  c.stepIdx = 0; c.attempt = 1; c.phase = "brief"; c.results = {}; c.variants = {};
+  c.err = ""; c.warningShown = false; c.showWarn = false; c.viewOnly = false;
+  c.effort = ""; c.notes = "";
+  render();
+}
+
+function calibPickVariant(id, i) {
+  var c = state.calib;
+  if (!c) return;
+  var t = null;
+  BATTERY.forEach(function(b){ if (b.id === id) t = b; });
+  if (!t) return;
+  c.variants[id] = t.variants[i] || t.variants[0];
+  render();
+}
+
+function calibOpenLog() {
+  var c = state.calib;
+  if (!c) return;
+  c.err = "";
+  c.phase = "log";
+  render();
+}
+
+function calibStartClock() {
+  var c = state.calib;
+  if (!c) return;
+  c.phase = "clock";
+  c.clockStart = Date.now();
+  c.pausedAccum = 0;
+  c.paused = false;
+  c.clockAtPause = null;
+  c.lastClockRender = -1;
+  triggerAlert(880, 0.1, 80);
+  render();
+}
+
+function calibToggleClockPause() {
+  var c = state.calib;
+  if (!c || c.phase !== "clock") return;
+  if (c.paused) {
+    c.pausedAccum += Date.now() - c.clockAtPause;
+    c.clockAtPause = null;
+    c.paused = false;
+  } else {
+    c.clockAtPause = Date.now();
+    c.paused = true;
+  }
+  render();
+}
+
+function calibClockSeconds(c) {
+  var end = c.clockAtPause ? c.clockAtPause : Date.now();
+  return Math.max(0, Math.floor((end - c.clockStart - (c.pausedAccum || 0)) / 1000));
+}
+
+function calibStopClock() {
+  var c = state.calib;
+  if (!c || c.phase !== "clock") return;
+  var t = BATTERY[c.stepIdx];
+  var secs = calibClockSeconds(c);
+  if (!c.results[t.id]) c.results[t.id] = { attempts: [], variant: c.variants[t.id] || t.variants[0] };
+  var r = c.results[t.id];
+  r.variant = c.variants[t.id] || t.variants[0];
+  r.attempts.push(secs);
+  triggerAlert(660, 0.25, [150, 80, 150]);
+  if (r.attempts.length < t.attempts) {
+    c.attempt = r.attempts.length + 1;
+    c.phase = "brief";
+  } else {
+    calibAfterResult();
+  }
+  render();
+}
+
+function calibSaveResult() {
+  var c = state.calib;
+  if (!c || c.phase !== "log") return;
+  var t = BATTERY[c.stepIdx];
+  c.err = "";
+  if (t.input === "reps") {
+    var el = document.getElementById("calibRepsInput");
+    var v = el ? parseInt(el.value, 10) : NaN;
+    if (isNaN(v) || v < 0) { c.err = "ENTER A NUMBER"; render(); return; }
+    c.results[t.id] = { value: v, variant: c.variants[t.id] || t.variants[0] };
+  } else {
+    var le = document.getElementById("calibLeftInput");
+    var re = document.getElementById("calibRightInput");
+    var lv = le ? parseInt(le.value, 10) : NaN;
+    var rv = re ? parseInt(re.value, 10) : NaN;
+    if (isNaN(lv) || lv < 0 || isNaN(rv) || rv < 0) { c.err = "ENTER A NUMBER FOR BOTH LEGS"; render(); return; }
+    c.results[t.id] = { left: lv, right: rv, variant: c.variants[t.id] || t.variants[0] };
+  }
+  triggerAlert(660, 0.25, [150, 80, 150]);
+  calibAfterResult();
+  render();
+}
+
+function calibAfterResult() {
+  var c = state.calib;
+  var rest = BATTERY[c.stepIdx].restAfter || 0;
+  if (rest > 0) {
+    c.phase = "rest";
+    c.restTotal = rest;
+    c.restEnd = Date.now() + rest * 1000;
+    c.secondsLeft = rest;
+    if (!c.warningShown) { c.warningShown = true; c.showWarn = true; }
+  } else {
+    calibAdvance();
+  }
+}
+
+function calibAdvance() {
+  var c = state.calib;
+  c.showWarn = false;
+  if (c.stepIdx >= BATTERY.length - 1) {
+    c.phase = "finale";
+  } else {
+    c.stepIdx += 1;
+    c.attempt = 1;
+    c.phase = "brief";
+  }
+  render();
+}
+
+function calibSkipRest() {
+  var c = state.calib;
+  if (!c || c.phase !== "rest") return;
+  triggerAlert(1046, 0.2, 80);
+  calibAdvance();
+}
+
+function runCalibTimer() {
+  clearTimeout(calibTimerId);
+  if (state.view !== "calibration" || !state.calib) return;
+  var c = state.calib;
+  if (c.phase === "rest" && !c.paused) {
+    var remaining = Math.ceil((c.restEnd - Date.now()) / 1000);
+    if (remaining !== c.secondsLeft) {
+      c.secondsLeft = Math.max(0, remaining);
+      render();
+    }
+    if (c.secondsLeft <= 0) {
+      triggerAlert(1046, 0.2, 100);
+      calibAdvance();
+      return;
+    }
+    calibTimerId = setTimeout(runCalibTimer, 250);
+  } else if (c.phase === "clock") {
+    if (c.paused) return;
+    var s = calibClockSeconds(c);
+    if (s !== c.lastClockRender) {
+      c.lastClockRender = s;
+      render();
+    }
+    calibTimerId = setTimeout(runCalibTimer, 250);
+  }
+}
+
+function calibSaveBattery() {
+  var c = state.calib;
+  if (!c) return;
+  var effortEl = document.getElementById("calibEffortInput");
+  var notesEl = document.getElementById("calibNotesInput");
+  c.effort = effortEl ? String(effortEl.value).trim() : "";
+  c.notes = notesEl ? String(notesEl.value).trim() : "";
+  var entry = { date: c.date, results: c.results, effort: c.effort, notes: c.notes, savedAt: new Date().toISOString() };
+  var log = state.calibrationLog.filter(function(e){ return e.date !== entry.date; });
+  log.push(entry);
+  state.calibrationLog = log;
+  Storage.set("calibration-log", JSON.stringify(log));
+  state.calibResultView = entry;
+  c.phase = "done";
+  Storage.set("calibration-session", "");
+  triggerAlert(1046, 0.3, 200);
+  releaseWakeLock();
+  render();
+}
+
+function calibViewLast() {
+  var log = state.calibrationLog;
+  if (!log.length) return;
+  var last = log[log.length - 1];
+  state.calibResultView = last;
+  state.calib = { date: last.date, phase: "done", viewOnly: true, stepIdx: 0,
+    variants: {}, results: last.results, effort: last.effort || "", notes: last.notes || "" };
+  render();
+}
+
+function calibReturn() {
+  clearTimeout(calibTimerId);
+  state.calib = null;
+  state.calibResultView = null;
+  releaseWakeLock();
+  state.view = "overview";
+  render();
+}
+
+function calibResultLine(t, r) {
+  var v = r.variant || t.variants[0];
+  if (t.input === "hold") {
+    var best = (r.attempts && r.attempts.length) ? Math.max.apply(null, r.attempts) : 0;
+    return best + "s (" + v + ")" + (r.attempts && r.attempts.length > 1 ? " [best of " + r.attempts.join("/") + "]" : "");
+  }
+  if (t.input === "reps") {
+    return (r.value != null ? r.value : "-") + " reps (" + v + ")";
+  }
+  return "L " + (r.left != null ? r.left : "-") + " / R " + (r.right != null ? r.right : "-") + " (" + v + ")";
+}
+
+function formatCalibrationResults(results, effort, notes, date) {
+  var lines = ["CALIBRATION " + date];
+  BATTERY.forEach(function(t){
+    var r = results[t.id] || {};
+    var v = r.variant || t.variants[0];
+    var line = t.n + " " + t.name + ": ";
+    if (t.input === "hold") {
+      var best = (r.attempts && r.attempts.length) ? Math.max.apply(null, r.attempts) : 0;
+      line += best + "s (" + v + ")";
+      if (r.attempts && r.attempts.length > 1) line += " [attempts " + r.attempts.join("/") + "]";
+    } else if (t.input === "reps") {
+      line += (r.value != null ? r.value : "-") + " reps (" + v + ")";
+    } else {
+      line += "L " + (r.left != null ? r.left : "-") + " / R " + (r.right != null ? r.right : "-") + " (" + v + ")";
+    }
+    lines.push(line);
+  });
+  if (effort) lines.push("effort: " + effort);
+  if (notes) lines.push("notes: " + notes);
+  return lines.join("\n");
+}
+
+function copyCalibrationResults() {
+  var e = state.calibResultView;
+  if (!e) return;
+  var txt = formatCalibrationResults(e.results, e.effort || "", e.notes || "", e.date);
+  function fallback() {
+    var ta = document.createElement("textarea");
+    ta.value = txt;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); } catch(err) {}
+    document.body.removeChild(ta);
+  }
+  function done() {
+    var b = document.getElementById("calibCopyBtn");
+    if (b) {
+      b.textContent = "COPIED";
+      setTimeout(function(){ var bb = document.getElementById("calibCopyBtn"); if (bb) bb.textContent = "COPY RESULTS"; }, 1600);
+    }
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(done, function(){ fallback(); done(); });
+  } else {
+    fallback();
+    done();
+  }
+}
+
+function renderCalibEntry(t) {
+  var resuming = state.calib && !state.calib.viewOnly && state.calib.phase !== "done";
+  var html = '<button class="bigbtn" onclick="startCalibration()" style="margin-top:10px;background:rgba(255,255,255,0.06);color:'+t.accent+';border:1px solid '+t.accent+';box-shadow:none;">'+
+    icoChart(t.accent)+' '+(resuming ? 'RESUME CALIBRATION' : 'CALIBRATE (9 TESTS)')+'</button>';
+  if (resuming) {
+    html += '<button onclick="calibDiscard()" style="margin-top:8px;width:100%;font-size:10px;letter-spacing:1px;color:'+TEXT_DIM+';padding:6px;">DISCARD SAVED RUN</button>';
+  }
+  return html;
+}
+
+function renderCalibration() {
+  var t = theme();
+  var c = state.calib;
+  if (!c) return "";
+  var html = '<div class="wrap">';
+
+  html += '<div class="row" style="width:100%;margin-bottom:10px;">'+
+    '<span class="dim" style="font-size:10px;letter-spacing:1px;">CALIBRATION'+
+    (c.phase !== "intro" && c.phase !== "done" ? ' - TEST '+(c.stepIdx+1)+'/'+BATTERY.length : '')+'</span>'+
+    '<button onclick="exitCalibration()" style="color:'+TEXT_DIM+';">'+icoX(TEXT_DIM)+'</button></div>';
+
+  if (c.phase === "intro") {
+    html += '<div class="panel" style="text-align:center;margin-bottom:14px;">'+
+      '<div class="hdr" style="font-size:20px;color:'+t.accent+';text-shadow:0 0 12px '+t.glow+';">CALIBRATION BATTERY</div>'+
+      '<div class="dim" style="font-size:11px;margin-top:6px;">9 tests, one max effort each. This is NOT a workout - nothing here counts toward your week.</div></div>';
+    html += '<div class="panel" style="margin-bottom:14px;border-left:3px solid #ff9500;">'+
+      '<div style="font-size:10px;letter-spacing:1px;color:#ff9500;margin-bottom:6px;">RULES</div>'+
+      '<div style="font-size:12px;color:#cde3ec;line-height:1.65;">Do not run within 24h of a hard session, and never on a bouldering day.<br>Rest 2-3 min between tests, 4 min before test 5.<br>Stop at form break, not pain.</div></div>';
+    html += '<div class="panel" style="margin-bottom:16px;">'+
+      '<div style="font-size:10px;letter-spacing:1px;color:'+t.accent+';margin-bottom:6px;">WARM UP FIRST (10 MIN, NOT OPTIONAL)</div>'+
+      '<div style="font-size:12px;color:#cde3ec;line-height:1.65;">Wrist circles + prayer stretch + floor rocking, shoulder CARs, 5 easy scapular pull-ups, 2 easy tuck lever entries, 2 wall plank holds, leg swings, 10 squats.</div></div>';
+    html += '<button class="bigbtn" onclick="calibBegin()" style="background:'+t.accent+';color:#02080a;box-shadow:0 0 24px '+t.glow+';">'+icoPlay("#02080a")+' BEGIN BATTERY</button>';
+    if (state.calibrationLog.length > 0) {
+      var lastEntry = state.calibrationLog[state.calibrationLog.length - 1];
+      html += '<button class="bigbtn" onclick="calibViewLast()" style="margin-top:10px;background:rgba(255,255,255,0.06);color:'+t.accent+';border:1px solid rgba(255,255,255,0.12);box-shadow:none;">LAST RESULTS ('+lastEntry.date+')</button>';
+    }
+  } else if (c.phase === "brief") {
+    var bt = BATTERY[c.stepIdx];
+    var br = c.results[bt.id];
+    var attemptN = (br && br.attempts && br.attempts.length) ? br.attempts.length + 1 : 1;
+    var selVariant = c.variants[bt.id] || bt.variants[0];
+    html += '<div class="panel" style="text-align:center;margin-bottom:14px;">'+
+      '<div class="dim" style="font-size:10px;letter-spacing:2px;">TEST '+bt.n+' OF 9'+(bt.attempts > 1 ? ' - ATTEMPT '+attemptN+' OF 2' : '')+'</div>'+
+      '<div class="hdr" style="font-size:18px;color:'+t.accent+';margin-top:6px;">'+bt.name+'</div>'+
+      '<div style="font-size:12px;color:#cde3ec;margin-top:8px;line-height:1.55;">'+bt.cues+'</div>';
+    if (br && br.attempts && br.attempts.length) {
+      html += '<div class="dim" style="font-size:11px;margin-top:8px;">ATTEMPT 1: '+br.attempts[0]+'s</div>';
+    }
+    html += '</div>';
+    html += '<div class="panel" style="margin-bottom:14px;">'+
+      '<div style="font-size:10px;letter-spacing:1px;color:'+TEXT_DIM+';margin-bottom:8px;">VARIANT USED</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;">';
+    bt.variants.forEach(function(v, i){
+      var sel = selVariant === v;
+      html += '<button onclick="calibPickVariant(\''+bt.id+'\','+i+')" style="padding:8px 12px;border-radius:20px;font-size:11px;border:1px solid '+(sel?t.accent:'rgba(255,255,255,0.14)')+';background:'+(sel?t.glow:'transparent')+';color:'+(sel?t.accent:'#cde3ec')+';cursor:pointer;">'+v+'</button>';
+    });
+    html += '</div></div>';
+    if (bt.input === "hold") {
+      html += '<button class="bigbtn" onclick="calibStartClock()" style="background:'+t.accent+';color:#02080a;box-shadow:0 0 24px '+t.glow+';">'+icoPlay("#02080a")+' START CLOCK</button>';
+    } else {
+      html += '<button class="bigbtn" onclick="calibOpenLog()" style="background:'+t.accent+';color:#02080a;box-shadow:0 0 24px '+t.glow+';">'+icoCheck("#02080a")+' DONE - LOG RESULT</button>';
+    }
+  } else if (c.phase === "clock") {
+    var ct = BATTERY[c.stepIdx];
+    var secs = calibClockSeconds(c);
+    var inner = '<div class="hdr" style="font-size:56px;color:'+t.accent+';text-shadow:0 0 20px '+t.glow+';">'+secs+'</div>'+
+      '<div class="dim" style="font-size:10px;letter-spacing:2px;margin-top:4px;">'+(c.paused ? 'PAUSED' : 'SECONDS - HOLD')+'</div>';
+    html += '<div class="panel" style="text-align:center;margin-bottom:16px;">'+
+      '<div class="hdr" style="font-size:17px;color:#dff3fb;">'+ct.name+'</div></div>';
+    html += '<div style="display:flex;justify-content:center;margin-bottom:16px;">'+ringSVG(0, t.accent, t.glow, 240, 10, inner)+'</div>';
+    html += '<div style="display:flex;gap:12px;">';
+    html += '<button class="ctrlbtn" onclick="calibToggleClockPause()" style="flex:1;">'+(c.paused ? icoPlay("#dff3fb")+' RESUME' : icoPause("#dff3fb")+' PAUSE')+'</button>';
+    html += '<button class="bigbtn" onclick="calibStopClock()" style="flex:2;background:'+t.accent+';color:#02080a;box-shadow:0 0 20px '+t.glow+';padding:16px;">'+icoCheck("#02080a")+' STOP - HOLD OVER</button>';
+    html += '</div>';
+  } else if (c.phase === "log") {
+    var lt = BATTERY[c.stepIdx];
+    html += '<div class="panel" style="text-align:center;margin-bottom:14px;">'+
+      '<div class="dim" style="font-size:10px;letter-spacing:2px;">TEST '+lt.n+' OF 9 - LOG RESULT</div>'+
+      '<div class="hdr" style="font-size:18px;color:'+t.accent+';margin-top:6px;">'+lt.name+'</div>'+
+      '<div class="dim" style="font-size:11px;margin-top:6px;">VARIANT: '+(c.variants[lt.id] || lt.variants[0])+'</div></div>';
+    html += '<div class="panel" style="margin-bottom:14px;">';
+    if (lt.input === "reps") {
+      html += '<label class="fieldlabel">MAX CLEAN REPS</label>'+
+        '<input type="number" id="calibRepsInput" min="0" placeholder="e.g. 12" />';
+    } else {
+      html += '<label class="fieldlabel">REPS - LEFT LEG</label>'+
+        '<input type="number" id="calibLeftInput" min="0" placeholder="e.g. 4" style="margin-bottom:12px;" />'+
+        '<label class="fieldlabel">REPS - RIGHT LEG</label>'+
+        '<input type="number" id="calibRightInput" min="0" placeholder="e.g. 3" />';
+    }
+    if (c.err) html += '<div style="color:#ff7b86;font-size:11px;letter-spacing:1px;margin-top:8px;">'+c.err+'</div>';
+    html += '</div>';
+    html += '<button class="bigbtn" onclick="calibSaveResult()" style="background:'+t.accent+';color:#02080a;box-shadow:0 0 24px '+t.glow+';">'+icoCheck("#02080a")+' SAVE RESULT</button>';
+  } else if (c.phase === "rest") {
+    var total = c.restTotal || BATTERY[c.stepIdx].restAfter || 1;
+    var progress = total > 0 ? 1 - (c.secondsLeft / total) : 1;
+    progress = Math.min(Math.max(progress, 0), 1);
+    var restInner = '<div class="hdr" style="font-size:56px;color:#7fd88a;text-shadow:0 0 20px rgba(127,216,138,0.35);">'+c.secondsLeft+'</div>'+
+      '<div class="dim" style="font-size:10px;letter-spacing:2px;margin-top:4px;">REST BEFORE NEXT TEST</div>';
+    html += '<div style="display:flex;justify-content:center;margin-bottom:16px;">'+ringSVG(progress, "#7fd88a", "rgba(127,216,138,0.35)", 240, 10, restInner)+'</div>';
+    if (c.showWarn) {
+      html += '<div class="panel" style="margin-bottom:14px;border-left:3px solid #ff9500;background:rgba(255,149,0,0.08);">'+
+        '<div style="font-size:12px;color:#ff9500;line-height:1.55;">Fatigue corrupts the next numbers. Take the full rest - walk it off, shake the arms out.</div></div>';
+    }
+    if (c.stepIdx + 1 < BATTERY.length) {
+      var next = BATTERY[c.stepIdx + 1];
+      html += '<div class="panel" style="width:100%;margin-bottom:16px;border-left:3px solid '+t.accent+';">'+
+        '<div class="dim" style="font-size:9px;letter-spacing:2px;margin-bottom:4px;">UP NEXT</div>'+
+        '<div style="font-size:14px;color:#dff3fb;">TEST '+next.n+' - '+next.name+'</div></div>';
+    }
+    html += '<button class="ctrlbtn" onclick="calibSkipRest()" style="width:100%;">'+icoSkip("#dff3fb")+' SKIP REST</button>';
+  } else if (c.phase === "finale") {
+    html += '<div class="panel" style="text-align:center;margin-bottom:14px;">'+
+      '<div class="hdr" style="font-size:20px;color:'+t.accent+';text-shadow:0 0 12px '+t.glow+';">BATTERY COMPLETE</div>'+
+      '<div class="dim" style="font-size:11px;margin-top:6px;">All 9 tests logged. Two optional fields, then save.</div></div>';
+    html += '<div class="panel" style="margin-bottom:14px;">'+
+      '<label class="fieldlabel">EFFORT (1-10, 10 IS EVERYTHING YOU HAD)</label>'+
+      '<input type="number" id="calibEffortInput" min="1" max="10" value="'+(c.effort||'')+'" style="margin-bottom:12px;" />'+
+      '<label class="fieldlabel">NOTES - WHAT HURT, WHAT FELT WRONG</label>'+
+      '<textarea id="calibNotesInput" rows="3" style="width:100%;border-radius:10px;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.12);color:#dff3fb;padding:10px;font-family:inherit;font-size:13px;resize:vertical;">'+(c.notes||'')+'</textarea></div>';
+    html += '<button class="bigbtn" onclick="calibSaveBattery()" style="background:'+t.accent+';color:#02080a;box-shadow:0 0 24px '+t.glow+';">'+icoCheck("#02080a")+' SAVE BATTERY</button>';
+  } else if (c.phase === "done") {
+    var e = state.calibResultView || c;
+    html += '<div class="panel" style="text-align:center;margin-bottom:14px;">'+
+      '<div class="hdr" style="font-size:20px;color:'+t.accent+';text-shadow:0 0 12px '+t.glow+';">'+(c.viewOnly ? 'SAVED RESULTS' : 'BATTERY SAVED')+'</div>'+
+      '<div class="dim" style="font-size:11px;margin-top:6px;">'+e.date+'</div></div>';
+    html += '<div class="panel" style="margin-bottom:14px;">';
+    BATTERY.forEach(function(bt){
+      var r = (e.results && e.results[bt.id]) || {};
+      html += '<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:12px;">'+
+        '<span style="color:#cde3ec;white-space:nowrap;">'+bt.n+'. '+bt.name+'</span>'+
+        '<span style="color:'+t.accent+';text-align:right;">'+calibResultLine(bt, r)+'</span></div>';
+    });
+    if (e.effort) html += '<div style="font-size:11px;color:#ffd60a;margin-top:8px;">EFFORT: '+e.effort+'/10</div>';
+    if (e.notes) html += '<div style="font-size:11px;color:#cde3ec;margin-top:6px;line-height:1.5;">'+e.notes+'</div>';
+    html += '</div>';
+    html += '<button id="calibCopyBtn" onclick="copyCalibrationResults()" class="bigbtn" style="background:'+t.accent+';color:#02080a;box-shadow:0 0 24px '+t.glow+';">COPY RESULTS</button>';
+    html += '<button onclick="calibReturn()" class="bigbtn" style="margin-top:10px;background:rgba(255,255,255,0.06);color:'+t.accent+';border:1px solid '+t.accent+';box-shadow:none;">RETURN</button>';
+  }
+
+  html += '</div>';
+  return html;
 }
 
 /* ============================================================
@@ -1298,6 +1796,8 @@ function renderOverview() {
       '<div class="dim" style="font-size:11px;margin-top:10px;">Recovery is part of the protocol.</div>'+
     '</div>';
   }
+
+  html += renderCalibEntry(t);
 
   html += '</div>';
   if (state.editModal) html += renderEditModal();
@@ -1894,10 +2394,18 @@ function render() {
   else if (state.view === "active") html += renderActive();
   else if (state.view === "complete") html += renderComplete();
   else if (state.view === "stats") html += renderStats();
+  else if (state.view === "calibration") html += renderCalibration();
   html += renderNoteModal();
   html += renderMeasurementModal();
   document.getElementById("app").innerHTML = html;
   saveSessionState();
+  saveCalibState();
+  /* Kick the calibration tick ASYNCHRONOUSLY: calling runCalibTimer()
+     synchronously from here would recurse render -> timer -> render. */
+  if (state.view === "calibration") {
+    clearTimeout(calibTimerId);
+    calibTimerId = setTimeout(runCalibTimer, 0);
+  } else clearTimeout(calibTimerId);
 }
 
 /* ============================================================

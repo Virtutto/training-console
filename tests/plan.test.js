@@ -253,6 +253,109 @@ if (PLAN) {
   ok("a movement prescribed as a main item carries one dose across the week", drifted.length === 0, drifted.join(" | "));
 }
 
+/* --- 6d. calibration battery logger (added Oct 15 2026) ------------ */
+/* The battery is a one-shot data-collection flow, not a workout: it must
+   not touch PLAN, day completion, PRs or set logs. These assertions guard
+   the battery definition (order, input types, rest rules), the flow
+   functions, the two storage keys and the copy-to-clipboard format that
+   Nexus reads to build PLAN v7.15. */
+{
+  const batMatch = src.match(/var BATTERY = (\[[\s\S]*?\n\]);/);
+  ok("BATTERY block found", !!batMatch, "var BATTERY [...] not matched");
+  let BATTERY = null;
+  if (batMatch) {
+    try {
+      const bs = {};
+      vm.createContext(bs);
+      vm.runInContext("var BATTERY = " + batMatch[1], bs, { filename: "battery.js" });
+      BATTERY = bs.BATTERY;
+    } catch (e) { ok("BATTERY block evaluates", false, e.message); }
+  }
+  ok("BATTERY evaluates to an array", Array.isArray(BATTERY), typeof BATTERY);
+
+  if (Array.isArray(BATTERY)) {
+    ok("BATTERY has exactly 9 tests", BATTERY.length === 9, "n=" + BATTERY.length);
+    ok("BATTERY ids are unique", new Set(BATTERY.map(t => t.id)).size === BATTERY.length,
+      BATTERY.map(t => t.id).join(","));
+    BATTERY.forEach(function (t, i) {
+      const tag = "BATTERY[" + i + "] (" + t.id + ")";
+      ok(tag + " n == position", t.n === i + 1, "n=" + t.n);
+      ok(tag + " has a non-empty name", typeof t.name === "string" && t.name.trim().length > 0);
+      ok(tag + " input is hold|reps|perleg", ["hold", "reps", "perleg"].indexOf(t.input) > -1, "input=" + t.input);
+      ok(tag + " has non-empty cues", typeof t.cues === "string" && t.cues.trim().length > 0);
+      ok(tag + " has >= 1 non-empty variant", Array.isArray(t.variants) && t.variants.length >= 1 &&
+        t.variants.every(v => typeof v === "string" && v.trim().length > 0), JSON.stringify(t.variants));
+      ok(tag + " restAfter is an integer >= 0", Number.isInteger(t.restAfter) && t.restAfter >= 0, "restAfter=" + t.restAfter);
+    });
+    const byId = {};
+    BATTERY.forEach(t => { byId[t.id] = t; });
+    ok("test 1 (handstand) allows 2 attempts", byId.handstand && byId.handstand.attempts === 2, "attempts=" + (byId.handstand || {}).attempts);
+    ["tucklever", "pike", "diamond", "pullups", "scapular", "hollow", "pistol", "bulgarian"].forEach(function (id) {
+      ok("test " + id + " is single-attempt", byId[id] && byId[id].attempts === 1, "attempts=" + (byId[id] || {}).attempts);
+    });
+    ok("4 min rest before test 5", byId.diamond && byId.diamond.restAfter === 240, "restAfter=" + (byId.diamond || {}).restAfter);
+    ok("no rest between pistol and Bulgarian (straight after)", byId.pistol && byId.pistol.restAfter === 0 && byId.bulgarian && byId.bulgarian.restAfter === 0);
+    ok("BATTERY order matches the field sheet", BATTERY.map(t => t.id).join(",") === "handstand,tucklever,pike,diamond,pullups,scapular,hollow,pistol,bulgarian");
+  }
+
+  /* flow functions */
+  ["startCalibration", "exitCalibration", "calibStartClock", "calibStopClock",
+   "calibSaveResult", "calibSkipRest", "calibSaveBattery",
+   "formatCalibrationResults", "copyCalibrationResults"].forEach(function (fn) {
+    ok("function " + fn + " defined", new RegExp("function\\s+" + fn + "\\s*\\(").test(src), "not found");
+  });
+
+  /* storage keys */
+  ok('references "calibration-session"', src.indexOf('"calibration-session"') > -1);
+  ok('references "calibration-log"', src.indexOf('"calibration-log"') > -1);
+
+  /* overview entry button (the visible way in) */
+  ok("overview renders the CALIBRATE entry button", html.indexOf("CALIBRATE (9 TESTS)") > -1);
+
+  /* export rides the battery log along */
+  ok("export payload includes calibrationLog", /calibrationLog:\s*state\.calibrationLog/.test(src));
+
+  /* copy format: evaluate the pure formatter against a fixture */
+  const fmtMatch = src.match(/function formatCalibrationResults([\s\S]*?)\n\}/);
+  ok("formatCalibrationResults extractable", !!fmtMatch, "not found");
+  if (fmtMatch) {
+    try {
+      const fsb = {};
+      vm.createContext(fsb);
+      vm.runInContext("var BATTERY = " + batMatch[1] + ";function formatCalibrationResults" + fmtMatch[1] + "\n}", fsb, { filename: "fmt.js" });
+      const fixture = {
+        date: "2026-10-16",
+        results: {
+          handstand: { attempts: [12, 22], variant: "chest-to-wall" },
+          tucklever: { value: 9, variant: "tuck" },
+          pike: { value: 11, variant: "feet-elevated" },
+          diamond: { value: 18, variant: "full" },
+          pullups: { value: 7, variant: "strict" },
+          scapular: { value: 14, variant: "full hang" },
+          hollow: { value: 41, variant: "arms overhead" },
+          pistol: { left: 4, right: 3, variant: "full" },
+          bulgarian: { left: 12, right: 11, variant: "feet elevated" }
+        },
+        effort: 8,
+        notes: "left shoulder tight"
+      };
+      const out = fsb.formatCalibrationResults(fixture.results, fixture.effort, fixture.notes, fixture.date);
+      ok("copy block starts with CALIBRATION + date", out.split("\n")[0] === "CALIBRATION 2026-10-16", out.split("\n")[0]);
+      for (let n = 1; n <= 9; n++) {
+        ok("copy block numbers test " + n, new RegExp("^" + n + " ", "m").test(out), "missing line " + n);
+      }
+      ok("copy block shows best-of-2 for test 1", out.indexOf("22s") > -1 && out.indexOf("12") > -1);
+      ok("copy block shows L/R for pistol", /8 Pistol squat: L 4 \/ R 3 \(full\)/.test(out));
+      ok("copy block carries effort + notes", out.indexOf("effort: 8") > -1 && out.indexOf("notes: left shoulder tight") > -1);
+      ok("copy block omits empty optional lines", !/effort:\s*$/m.test(formatFixtureEmpty(fsb)) , "empty effort line present");
+    } catch (e) { ok("formatCalibrationResults evaluates", false, e.message); }
+  }
+  function formatFixtureEmpty(fsb) {
+    const f = { handstand: { attempts: [5, 6], variant: "chest-to-wall" } };
+    try { return fsb.formatCalibrationResults(f, "", "", "2026-10-16"); } catch (e) { return "effort:"; }
+  }
+}
+
 /* --- 7. version + assets ------------------------------------------- */
 const verMatch = html.match(/var APP_VERSION = "(v[0-9]+(?:\.[0-9]+)*)"/);
 ok("APP_VERSION present and well formed", !!verMatch, "none found");

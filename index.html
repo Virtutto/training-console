@@ -93,12 +93,12 @@ var PLAN = {
       Object.assign({name:"Shoulder CARs"}, T(90)),
       Object.assign({name:"Wrist prep + mobility"}, T(60)),
       Object.assign({name:"Scapular push-ups"}, R("10 reps")),
-      Object.assign({name:"Hollow hold (light)"}, T(20))
+      Object.assign({name:"Hollow hold (light)"}, T(10))
     ],
     main: [
-      Object.assign({name:"Wall handstand hold", sets:4, rest:90}, T(15)),
-      Object.assign({name:"Pike push-ups (elevated feet)", sets:3, rest:90}, R("6-8 reps")),
-      Object.assign({name:"Diamond push-ups", sets:3, rest:75}, R("8-10 reps"))
+      Object.assign({name:"Wall plank holds", sets:4, rest:90}, T(20)),
+      Object.assign({name:"Pike push-ups (elevated feet)", sets:3, rest:90}, R("4-5 reps")),
+      Object.assign({name:"Diamond push-ups (full)", sets:3, rest:75}, R("5-6 reps"))
     ],
     cooldown: [
       Object.assign({name:"Shoulder stretch"}, T(30)),
@@ -113,9 +113,9 @@ var PLAN = {
       Object.assign({name:"Ankle mobility"}, T(45))
     ],
     main: [
-      Object.assign({name:"Pistol squat progression", sets:5, rest:90}, R("3-5 / leg")),
-      Object.assign({name:"Bulgarian split squats", sets:3, rest:75}, R("8 / leg")),
-      Object.assign({name:"Hollow body hold", sets:3, rest:60}, T(30))
+      Object.assign({name:"Pistol squat (assisted)", sets:5, rest:90}, R("6-7 / leg")),
+      Object.assign({name:"Bulgarian split squats (feet elevated)", sets:3, rest:75}, R("8-9 / leg")),
+      Object.assign({name:"Hollow body hold (arms at sides)", sets:3, rest:60}, T(14))
     ],
     cooldown: [
       Object.assign({name:"Hip flexor stretch"}, T(30)),
@@ -125,15 +125,14 @@ var PLAN = {
   },
   Thursday: { mode: "session", title: "PULL + FRONT LEVER", subtitle: "Bar day - front lever holds + vertical pulling",
     warmup: [
-      Object.assign({name:"Scapular pull-ups"}, R("10 reps")),
+      Object.assign({name:"Scapular pull-ups"}, R("5 reps")),
       Object.assign({name:"Dead hang (light)"}, T(20)),
-      Object.assign({name:"Hollow hold"}, T(15))
+      Object.assign({name:"Hollow hold"}, T(10))
     ],
     main: [
-      Object.assign({name:"Tuck front lever holds", sets:5, rest:90}, T(10)),
-      /* PROVISIONAL dose - v7.14 replaces it with the measured T5 value (spec section 5) */
-      Object.assign({name:"Strict pull-ups", sets:4, rest:120}, R("3-5 reps")),
-      Object.assign({name:"Hollow body hold", sets:3, rest:60}, T(30))
+      Object.assign({name:"Tuck front lever holds", sets:5, rest:90}, T(6)),
+      Object.assign({name:"Strict pull-ups", sets:4, rest:120}, R("3 reps")),
+      Object.assign({name:"Hollow body hold (arms at sides)", sets:3, rest:60}, T(14))
     ],
     cooldown: [
       Object.assign({name:"Lat stretch"}, T(30)),
@@ -144,12 +143,12 @@ var PLAN = {
     warmup: [
       Object.assign({name:"Shoulder CARs"}, T(60)),
       Object.assign({name:"Wrist prep"}, T(60)),
-      Object.assign({name:"Hollow hold (light)"}, T(20))
+      Object.assign({name:"Hollow hold (light)"}, T(10))
     ],
     main: [
-      Object.assign({name:"Pike push-ups (elevated feet)", sets:4, rest:90}, R("6-8 reps")),
-      Object.assign({name:"Diamond push-ups", sets:4, rest:75}, R("8-10 reps")),
-      Object.assign({name:"Hollow body hold", sets:3, rest:60}, T(30))
+      Object.assign({name:"Pike push-ups (elevated feet)", sets:4, rest:90}, R("4-5 reps")),
+      Object.assign({name:"Diamond push-ups (full)", sets:4, rest:75}, R("5-6 reps")),
+      Object.assign({name:"Hollow body hold (arms at sides)", sets:3, rest:60}, T(14))
     ],
     cooldown: [
       Object.assign({name:"Chest doorway stretch"}, T(30)),
@@ -159,13 +158,14 @@ var PLAN = {
   Saturday: { mode: "session", title: "PULL + FRONT LEVER", subtitle: "Bar + rings day - front lever holds + horizontal pulling",
     warmup: [
       Object.assign({name:"Scapular mobility"}, T(60)),
-      Object.assign({name:"Hollow hold (light)"}, T(20))
+      Object.assign({name:"Hollow hold (light)"}, T(10))
     ],
     main: [
-      Object.assign({name:"Tuck front lever holds", sets:4, rest:90}, T(10)),
-      /* PROVISIONAL dose - v7.14 replaces it with the measured value; rings scale by foot elevation */
+      Object.assign({name:"Tuck front lever holds", sets:4, rest:90}, T(6)),
+      /* UNMEASURED - the battery covered the vertical pull only (5 strict);
+         dial foot elevation so the 8-10 stays honest until a row test exists */
       Object.assign({name:"Ring rows", sets:4, rest:90}, R("8-10 reps")),
-      Object.assign({name:"Hollow body hold", sets:4, rest:60}, T(30))
+      Object.assign({name:"Hollow body hold (arms at sides)", sets:4, rest:60}, T(14))
     ],
     cooldown: [
       Object.assign({name:"Lat stretch"}, T(30)),
@@ -174,7 +174,7 @@ var PLAN = {
   }
 };
 var WINDUP_SECONDS = 5;
-var APP_VERSION = "v7.14";
+var APP_VERSION = "v7.15";
 
 /* ============================================================
    MUSCLE GROUP TAGS (exercise -> muscle groups + weight)
@@ -183,20 +183,20 @@ var APP_VERSION = "v7.14";
    enforces both directions: no loaded exercise without a tag (silently
    counted as zero volume), no tag for an exercise that is not in the plan. */
 var MUSCLE_TAGS = {
-  "Wall handstand hold":            { shoulders: 3, core: 1 },
+  "Wall plank holds":                 { shoulders: 2, triceps: 1, core: 1 },
   "Pike push-ups (elevated feet)":  { shoulders: 3, chest: 1, triceps: 2 },
-  "Diamond push-ups":               { chest: 2, triceps: 3 },
+  "Diamond push-ups (full)":          { chest: 2, triceps: 3 },
   "Scapular push-ups":              { shoulders: 2, chest: 1 },
   "Scapular pull-ups":              { lats: 2, rear_delts: 2, forearms: 1 },
   "Strict pull-ups":                { lats: 3, biceps: 2, forearms: 2, rear_delts: 1 },
   "Ring rows":                      { lats: 2, biceps: 2, rear_delts: 2, forearms: 1 },
   "Tuck front lever holds":         { lats: 3, core: 2, rear_delts: 2, forearms: 1 },
   "Dead hang (light)":              { forearms: 2, lats: 1 },
-  "Hollow body hold":               { core: 3 },
+  "Hollow body hold (arms at sides)": { core: 3 },
   "Hollow hold":                    { core: 1 },
   "Hollow hold (light)":            { core: 1 },
-  "Pistol squat progression":       { quads: 3, glutes: 2, core: 1 },
-  "Bulgarian split squats":         { quads: 3, glutes: 2, hamstrings: 1 }
+  "Pistol squat (assisted)":          { quads: 3, glutes: 2, core: 1 },
+  "Bulgarian split squats (feet elevated)": { quads: 3, glutes: 2, hamstrings: 1 }
 };
 var MUSCLE_GROUPS = ["chest","shoulders","triceps","biceps","lats","rear_delts","core","quads","hamstrings","glutes","forearms","traps"];
 var MUSCLE_LABELS = { chest:"CHEST", shoulders:"SHOULDERS", triceps:"TRICEPS", biceps:"BICEPS", lats:"LATS", rear_delts:"REAR DELTS", core:"CORE", quads:"QUADS", hamstrings:"HAMSTRINGS", glutes:"GLUTES", forearms:"FOREARMS", traps:"TRAPS" };

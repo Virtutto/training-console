@@ -356,6 +356,76 @@ if (PLAN) {
   }
 }
 
+/* --- 6e. calibration mapping v7.15 (Oct 16 2026) -------------------- */
+/* Adam ran the 9-test battery on Oct 15 2026. Measured maxima (spec
+   section 5 of the calibration design):
+     T1 handstand 11s chest-to-wall -> REGRESSION TRIGGER (11 < 15)
+     T2 tuck lever 12s (form caveat) | T3 pike 7 | T4 diamond 8
+     T5 strict pull-ups 5 | T6 scapular 9 (full hang) | T7 hollow 21s
+     T8 pistol L9/R9 assisted | T9 Bulgarian L12/R12 feet elevated.
+   These assertions PIN the mapped values so the plan cannot drift back
+   to guesses. Update them ONLY alongside a retest (4-6 week cadence). */
+if (PLAN) {
+  const calItems = [];
+  DAYS.forEach(function (d) {
+    const day = PLAN[d];
+    if (!day || day.mode !== "session") return;
+    ["warmup", "main", "cooldown"].forEach(function (sec) {
+      (day[sec] || []).forEach(function (ex) { calItems.push({ day: d, sec: sec, ex: ex }); });
+    });
+  });
+  const calFind = n => calItems.filter(i => i.ex.name === n);
+  const calDose = ex => ex.type === "time" ? ex.duration + "s" : ex.label;
+
+  /* Regression trigger: handstand 11s < 15s, so the hard movement leaves
+     the plan entirely - the plan gets the regression movement, not a
+     smaller number of the hard one. */
+  ok("Wall handstand hold removed (regression trigger: 11s < 15s)", calFind("Wall handstand hold").length === 0);
+  const planks = calFind("Wall plank holds");
+  ok("Wall plank holds present as Monday main", planks.length === 1 && planks[0].day === "Monday" && planks[0].sec === "main",
+    planks.length + " found");
+  ok("wall plank dose is 4 x 20s",
+    planks.length === 1 && planks[0].ex.sets === 4 && calDose(planks[0].ex) === "20s",
+    planks.length === 1 ? planks[0].ex.sets + " x " + calDose(planks[0].ex) : "absent");
+
+  /* Rep movements: 70-80% of measured max, top of range capped at max-2.
+     Scapular pull-ups sits in a warm-up, so it takes the field-sheet's
+     "5 easy" protocol dose instead (the old 10 reps exceeded his 9 max). */
+  const CAL_REPS = [
+    ["Pike push-ups (elevated feet)", "4-5 reps"],
+    ["Diamond push-ups (full)", "5-6 reps"],
+    ["Strict pull-ups", "3 reps"],
+    ["Pistol squat (assisted)", "6-7 / leg"],
+    ["Bulgarian split squats (feet elevated)", "8-9 / leg"],
+    ["Scapular pull-ups", "5 reps"]
+  ];
+  CAL_REPS.forEach(function (row) {
+    const hits = calFind(row[0]);
+    ok(row[0] + ' prescribed "' + row[1] + '" everywhere it appears',
+      hits.length > 0 && hits.every(h => h.ex.type === "reps" && h.ex.label === row[1]),
+      hits.length ? "got " + hits.map(h => calDose(h.ex)).join(",") : "not in plan");
+  });
+
+  /* Isometric holds: single timer value per set. Lever 50-60% of 12s ->
+     6s (bottom of range, form caveat). Hollow 60-70% of 21s -> 14s (top
+     of range: the under-30s core is the documented bottleneck). */
+  const levers = calFind("Tuck front lever holds");
+  ok("tuck lever dose is 6s (50-60% of 12s, bottom of range - form caveat)",
+    levers.length === 2 && levers.every(h => h.ex.type === "time" && h.ex.duration === 6),
+    levers.length ? "got " + levers.map(h => calDose(h.ex)).join(",") : "not in plan");
+  const hollows = calFind("Hollow body hold (arms at sides)");
+  ok("hollow body hold carries measured variant + dose 14s (60-70% of 21s)",
+    hollows.length === 4 && hollows.every(h => h.ex.type === "time" && h.ex.duration === 14),
+    hollows.length ? "n=" + hollows.length + " got " + hollows.map(h => calDose(h.ex)).join(",") : "not in plan");
+
+  /* Warm-up hollow holds must sit strictly below the main dose: the old
+     20s "light" was 95% of a 21s max - not light, pre-fatigue. */
+  const warmHollow = calItems.filter(i => i.sec === "warmup" && i.ex.name.indexOf("Hollow hold") === 0);
+  ok("warm-up hollow holds scaled below the main dose (4 items, all < 14s)",
+    warmHollow.length === 4 && warmHollow.every(i => i.ex.type === "time" && i.ex.duration < 14),
+    "n=" + warmHollow.length + " got " + warmHollow.map(i => i.ex.name + "=" + calDose(i.ex)).join(", "));
+}
+
 /* --- 7. version + assets ------------------------------------------- */
 const verMatch = html.match(/var APP_VERSION = "(v[0-9]+(?:\.[0-9]+)*)"/);
 ok("APP_VERSION present and well formed", !!verMatch, "none found");

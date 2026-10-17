@@ -86,95 +86,122 @@ function localISO(d) {
 function T(s){ return { type: "time", duration: s }; }
 function R(label){ return { type: "reps", label: label }; }
 
+/* ============================================================
+   PLAN v8.0 - redesigned 2026-10-17 (spec: 2026-10-17-training-plan-redesign-design.md)
+   Priority order: handstand #1, front lever #2, pistol squat #3.
+   The handstand block opens every session day (skill before strength)
+   because skill frequency is the lever that moves the priority goal.
+   EQUIPMENT (hard constraint): no bar, rings, bands or dip bars on
+   Monday or Thursday - box/bench/chair, floor, wall and parallettes
+   only. So bar and ring work can ONLY happen Wed/Fri/Sat, which is why
+   pulling sits on Wednesday and Saturday and legs took Thursday.
+   Every exercise carries a `cue` (one-line form description) shown in
+   the session view and on the rest screen.
+   ============================================================ */
 var PLAN = {
   Sunday: { mode: "rest", title: "REST", subtitle: "Recovery day - no session" },
-  Monday: { mode: "session", title: "PUSH + HANDSTAND", subtitle: "Target: handstand proficiency",
+  Monday: { mode: "session", title: "PUSH + HANDSTAND", subtitle: "Target: handstand proficiency - box, floor and wall only",
     warmup: [
-      Object.assign({name:"Shoulder CARs"}, T(90)),
-      Object.assign({name:"Wrist prep + mobility"}, T(60)),
-      Object.assign({name:"Scapular push-ups"}, R("10 reps")),
-      Object.assign({name:"Hollow hold (light)"}, T(10))
+      Object.assign({name:"Shoulder CARs", cue:"Slow controlled circles - ribs down, move only the shoulder."}, T(90)),
+      Object.assign({name:"Wrist prep + mobility", cue:"Circles, prayer stretch, floor rocking. Mandatory before any hand work."}, T(90)),
+      Object.assign({name:"Scapular push-ups", cue:"Arms straight, pinch the shoulder blades together, no elbow bend."}, R("10 reps")),
+      Object.assign({name:"Wall plank holds", cue:"Hands on the wall, body one line, squeeze glutes and pull the ribs down.", sets:2, rest:45}, T(15)),
+      Object.assign({name:"Ankle mobility", cue:"Knee-to-wall: toes ~10cm back, drive the knee to touch without the heel lifting."}, T(45))
     ],
     main: [
-      Object.assign({name:"Wall plank holds", sets:4, rest:90}, T(20)),
-      Object.assign({name:"Pike push-ups (elevated feet)", sets:3, rest:90}, R("4-5 reps")),
-      Object.assign({name:"Diamond push-ups (full)", sets:3, rest:75}, R("5-6 reps"))
+      Object.assign({name:"Chest-to-wall handstand holds", cue:"Chest and toes to the wall, push tall, squeeze glutes, ribs down. Stop at the first form break.", sets:5, rest:90}, T(8)),
+      Object.assign({name:"Heel/toe pulls (chest-to-wall)", cue:"Chest to wall, shift weight onto the hands, lift one heel then the other. Slow.", sets:3, rest:60}, R("4 reps")),
+      Object.assign({name:"Pike push-ups (elevated feet)", cue:"Hips high, head between the hands, elbows track back.", sets:3, rest:90}, R("4-5 reps")),
+      Object.assign({name:"Diamond push-ups (full)", cue:"Hands together under the chest, elbows tucked, body one line.", sets:3, rest:75}, R("5-6 reps")),
+      Object.assign({name:"Pistol squat (assisted)", cue:"Hold the box, sit back and down on one leg, heel flat, knee tracks over the toe. Progress by lowering the box, not by adding reps.", sets:2, rest:90}, R("3-5 / leg"))
     ],
     cooldown: [
-      Object.assign({name:"Shoulder stretch"}, T(30)),
-      Object.assign({name:"Wrist stretch"}, T(30))
+      Object.assign({name:"Shoulder stretch", cue:"Hold and breathe, no bouncing."}, T(30)),
+      Object.assign({name:"Wrist stretch", cue:"Gentle load only - the wrists have already worked."}, T(30)),
+      Object.assign({name:"Hip flexor stretch", cue:"Tuck the pelvis, squeeze the glute, hold."}, T(30))
     ]
   },
-  Tuesday: { mode: "boulder", title: "BOULDERING", subtitle: "Bouldering session - log only, no bar work" },
-  Wednesday: { mode: "session", title: "LEGS + PISTOL SQUAT", subtitle: "Target: pistol squat proficiency",
+  Tuesday: { mode: "boulder", title: "BOULDERING", subtitle: "Bouldering session - log only, no bar work. Optional 6 min handstand block if the grip is still fresh; skip it if it is not." },
+  Wednesday: { mode: "session", title: "PULL + FRONT LEVER", subtitle: "Bar day - front lever holds + vertical pulling",
     warmup: [
-      Object.assign({name:"Leg swings (front-back, side-side)"}, R("10 each")),
-      Object.assign({name:"Bodyweight squats"}, R("10 reps")),
-      Object.assign({name:"Ankle mobility"}, T(45))
+      Object.assign({name:"Scapular pull-ups", cue:"Dead hang, pull the shoulder blades down and back without bending the elbows."}, R("5 reps")),
+      Object.assign({name:"Dead hang (light)", cue:"Full hang, shoulders active, breathe. Easy - this is a warm-up."}, T(20)),
+      Object.assign({name:"Wrist prep", cue:"Circles, prayer stretch, floor rocking. Mandatory before any hand work."}, T(60)),
+      Object.assign({name:"Ankle mobility", cue:"Knee-to-wall: toes ~10cm back, drive the knee to touch without the heel lifting."}, T(45))
     ],
     main: [
-      Object.assign({name:"Pistol squat (assisted)", sets:5, rest:90}, R("6-7 / leg")),
-      Object.assign({name:"Bulgarian split squats (feet elevated)", sets:3, rest:75}, R("8-9 / leg")),
-      Object.assign({name:"Hollow body hold (arms at sides)", sets:3, rest:60}, T(14))
+      Object.assign({name:"Chest-to-wall handstand holds", cue:"Chest and toes to the wall, push tall, squeeze glutes, ribs down. Stop at the first form break.", sets:3, rest:90}, T(8)),
+      Object.assign({name:"Tuck front lever holds", cue:"Hips level with the shoulders, arms straight, scapulae pulled down. Stop when the hips drop.", sets:5, rest:90}, T(6)),
+      Object.assign({name:"Strict pull-ups", cue:"Dead hang start, chin over the bar, no kipping, full extension every rep.", sets:4, rest:120}, R("3 reps")),
+      Object.assign({name:"Hollow body hold (arms at sides)", cue:"Low back pressed to the floor, ribs down, legs straight and low.", sets:3, rest:60}, T(14))
     ],
     cooldown: [
-      Object.assign({name:"Hip flexor stretch"}, T(30)),
-      Object.assign({name:"Quad stretch"}, T(30)),
-      Object.assign({name:"Hamstring stretch"}, T(30))
+      Object.assign({name:"Lat stretch", cue:"Hold and breathe, no bouncing."}, T(30)),
+      Object.assign({name:"Shoulder stretch", cue:"Hold and breathe, no bouncing."}, T(30))
     ]
   },
-  Thursday: { mode: "session", title: "PULL + FRONT LEVER", subtitle: "Bar day - front lever holds + vertical pulling",
+  Thursday: { mode: "session", title: "LEGS + PISTOL", subtitle: "Target: pistol squat proficiency - box, floor and wall only",
     warmup: [
-      Object.assign({name:"Scapular pull-ups"}, R("5 reps")),
-      Object.assign({name:"Dead hang (light)"}, T(20)),
-      Object.assign({name:"Hollow hold"}, T(10))
+      Object.assign({name:"Leg swings (front-back, side-side)", cue:"Controlled swings, keep the torso upright."}, R("10 each")),
+      Object.assign({name:"Bodyweight squats", cue:"Full depth, heels down, knees track over the toes."}, R("10 reps")),
+      Object.assign({name:"Ankle mobility", cue:"Knee-to-wall: toes ~10cm back, drive the knee to touch without the heel lifting."}, T(45)),
+      Object.assign({name:"Wrist prep", cue:"Circles, prayer stretch, floor rocking. Mandatory before any hand work."}, T(60))
     ],
     main: [
-      Object.assign({name:"Tuck front lever holds", sets:5, rest:90}, T(6)),
-      Object.assign({name:"Strict pull-ups", sets:4, rest:120}, R("3 reps")),
-      Object.assign({name:"Hollow body hold (arms at sides)", sets:3, rest:60}, T(14))
+      Object.assign({name:"Chest-to-wall handstand holds", cue:"Chest and toes to the wall, push tall, squeeze glutes, ribs down. Stop at the first form break.", sets:3, rest:90}, T(8)),
+      Object.assign({name:"Pistol squat (assisted)", cue:"Hold the box, sit back and down on one leg, heel flat, knee tracks over the toe. Progress by lowering the box, not by adding reps.", sets:4, rest:90}, R("3-5 / leg")),
+      Object.assign({name:"Bulgarian split squats (feet elevated)", cue:"Rear foot on the box, front shin vertical, drop straight down.", sets:3, rest:75}, R("8-9 / leg")),
+      Object.assign({name:"Hollow body hold (arms at sides)", cue:"Low back pressed to the floor, ribs down, legs straight and low.", sets:3, rest:60}, T(14))
     ],
     cooldown: [
-      Object.assign({name:"Lat stretch"}, T(30)),
-      Object.assign({name:"Shoulder stretch"}, T(30))
+      Object.assign({name:"Hip flexor stretch", cue:"Tuck the pelvis, squeeze the glute, hold."}, T(30)),
+      Object.assign({name:"Quad stretch", cue:"Knees together, hips forward, hold."}, T(30)),
+      Object.assign({name:"Hamstring stretch", cue:"Hinge from the hips, long spine, hold."}, T(30))
     ]
   },
-  Friday: { mode: "session", title: "PUSH (NO BARS)", subtitle: "Bodyweight push only - no bar exercises",
+  Friday: { mode: "session", title: "PUSH (NO BARS) + HANDSTAND", subtitle: "Bodyweight push + handstand only - no bar or ring work",
     warmup: [
-      Object.assign({name:"Shoulder CARs"}, T(60)),
-      Object.assign({name:"Wrist prep"}, T(60)),
-      Object.assign({name:"Hollow hold (light)"}, T(10))
+      Object.assign({name:"Shoulder CARs", cue:"Slow controlled circles - ribs down, move only the shoulder."}, T(60)),
+      Object.assign({name:"Wrist prep", cue:"Circles, prayer stretch, floor rocking. Mandatory before any hand work."}, T(60)),
+      Object.assign({name:"Hollow hold (light)", cue:"Easy version - knees bent, low back flat. Warm-up only."}, T(10)),
+      Object.assign({name:"Wall plank holds", cue:"Hands on the wall, body one line, squeeze glutes and pull the ribs down.", sets:2, rest:45}, T(15)),
+      Object.assign({name:"Ankle mobility", cue:"Knee-to-wall: toes ~10cm back, drive the knee to touch without the heel lifting."}, T(45))
     ],
     main: [
-      Object.assign({name:"Pike push-ups (elevated feet)", sets:4, rest:90}, R("4-5 reps")),
-      Object.assign({name:"Diamond push-ups (full)", sets:4, rest:75}, R("5-6 reps")),
-      Object.assign({name:"Hollow body hold (arms at sides)", sets:3, rest:60}, T(14))
+      Object.assign({name:"Chest-to-wall handstand holds", cue:"Chest and toes to the wall, push tall, squeeze glutes, ribs down. Stop at the first form break.", sets:6, rest:90}, T(8)),
+      Object.assign({name:"Heel/toe pulls (chest-to-wall)", cue:"Chest to wall, shift weight onto the hands, lift one heel then the other. Slow.", sets:3, rest:60}, R("4 reps")),
+      Object.assign({name:"Pike push-ups (elevated feet)", cue:"Hips high, head between the hands, elbows track back.", sets:4, rest:90}, R("4-5 reps")),
+      Object.assign({name:"Diamond push-ups (full)", cue:"Hands together under the chest, elbows tucked, body one line.", sets:4, rest:75}, R("5-6 reps")),
+      Object.assign({name:"Hollow body hold (arms at sides)", cue:"Low back pressed to the floor, ribs down, legs straight and low.", sets:3, rest:60}, T(14))
     ],
     cooldown: [
-      Object.assign({name:"Chest doorway stretch"}, T(30)),
-      Object.assign({name:"Tricep stretch"}, T(30))
+      Object.assign({name:"Chest doorway stretch", cue:"Elbow at shoulder height, lean through, hold."}, T(30)),
+      Object.assign({name:"Tricep stretch", cue:"Elbow up, hand down the spine, hold."}, T(30))
     ]
   },
   Saturday: { mode: "session", title: "PULL + FRONT LEVER", subtitle: "Bar + rings day - front lever holds + horizontal pulling",
     warmup: [
-      Object.assign({name:"Scapular mobility"}, T(60)),
-      Object.assign({name:"Hollow hold (light)"}, T(10))
+      Object.assign({name:"Scapular mobility", cue:"Slow circles and shrugs, full range, no load."}, T(60)),
+      Object.assign({name:"Hollow hold (light)", cue:"Easy version - knees bent, low back flat. Warm-up only."}, T(10)),
+      Object.assign({name:"Wrist prep", cue:"Circles, prayer stretch, floor rocking. Mandatory before any hand work."}, T(60)),
+      Object.assign({name:"Ankle mobility", cue:"Knee-to-wall: toes ~10cm back, drive the knee to touch without the heel lifting."}, T(45))
     ],
     main: [
-      Object.assign({name:"Tuck front lever holds", sets:4, rest:90}, T(6)),
+      Object.assign({name:"Chest-to-wall handstand holds", cue:"Chest and toes to the wall, push tall, squeeze glutes, ribs down. Stop at the first form break.", sets:3, rest:90}, T(8)),
+      Object.assign({name:"Tuck front lever holds", cue:"Hips level with the shoulders, arms straight, scapulae pulled down. Stop when the hips drop.", sets:4, rest:90}, T(6)),
       /* UNMEASURED - the battery covered the vertical pull only (5 strict);
          dial foot elevation so the 8-10 stays honest until a row test exists */
-      Object.assign({name:"Ring rows", sets:4, rest:90}, R("8-10 reps")),
-      Object.assign({name:"Hollow body hold (arms at sides)", sets:4, rest:60}, T(14))
+      Object.assign({name:"Ring rows", cue:"Body straight, pull the chest to the rings, elbows close. Elevate the feet to progress.", sets:4, rest:90}, R("8-10 reps")),
+      Object.assign({name:"Hollow body hold (arms at sides)", cue:"Low back pressed to the floor, ribs down, legs straight and low.", sets:4, rest:60}, T(14))
     ],
     cooldown: [
-      Object.assign({name:"Lat stretch"}, T(30)),
-      Object.assign({name:"Child's pose"}, T(30))
+      Object.assign({name:"Lat stretch", cue:"Hold and breathe, no bouncing."}, T(30)),
+      Object.assign({name:"Child's pose", cue:"Knees wide, arms long, breathe into the back."}, T(30))
     ]
   }
 };
 var WINDUP_SECONDS = 5;
-var APP_VERSION = "v7.15";
+var APP_VERSION = "v8.0";
 
 /* ============================================================
    MUSCLE GROUP TAGS (exercise -> muscle groups + weight)
@@ -184,6 +211,8 @@ var APP_VERSION = "v7.15";
    counted as zero volume), no tag for an exercise that is not in the plan. */
 var MUSCLE_TAGS = {
   "Wall plank holds":                 { shoulders: 2, triceps: 1, core: 1 },
+  "Chest-to-wall handstand holds":    { shoulders: 3, core: 2, forearms: 1, traps: 1 },
+  "Heel/toe pulls (chest-to-wall)":   { shoulders: 2, core: 1, forearms: 1 },
   "Pike push-ups (elevated feet)":  { shoulders: 3, chest: 1, triceps: 2 },
   "Diamond push-ups (full)":          { chest: 2, triceps: 3 },
   "Scapular push-ups":              { shoulders: 2, chest: 1 },
@@ -193,7 +222,6 @@ var MUSCLE_TAGS = {
   "Tuck front lever holds":         { lats: 3, core: 2, rear_delts: 2, forearms: 1 },
   "Dead hang (light)":              { forearms: 2, lats: 1 },
   "Hollow body hold (arms at sides)": { core: 3 },
-  "Hollow hold":                    { core: 1 },
   "Hollow hold (light)":            { core: 1 },
   "Pistol squat (assisted)":          { quads: 3, glutes: 2, core: 1 },
   "Bulgarian split squats (feet elevated)": { quads: 3, glutes: 2, hamstrings: 1 }
@@ -228,7 +256,7 @@ function buildQueue(day) {
         queue.push({
           section: section, name: eff.name, setIndex: i+1, setTotal: sets,
           type: eff.type, duration: eff.duration, repsLabel: eff.label,
-          restAfter: eff.rest || 0
+          cue: eff.cue, restAfter: eff.rest || 0
         });
       }
     });
@@ -251,7 +279,7 @@ function buildQueueNoWarmup(day) {
         queue.push({
           section: section, name: eff.name, setIndex: i+1, setTotal: sets,
           type: eff.type, duration: eff.duration, repsLabel: eff.label,
-          restAfter: eff.rest || 0
+          cue: eff.cue, restAfter: eff.rest || 0
         });
       }
     });
@@ -274,7 +302,7 @@ function buildQueueCustom(day, sets) {
       queue.push({
         section: "MAIN", name: eff.name, setIndex: i + 1, setTotal: n,
         type: eff.type, duration: eff.duration, repsLabel: eff.label,
-        restAfter: eff.rest || 0
+        cue: eff.cue, restAfter: eff.rest || 0
       });
     }
   });
@@ -484,6 +512,7 @@ var state = {
   calibrationLog: [],
   calib: null,
   calibResultView: null,
+  nextCueOpen: false,
 };
 (function loadAll(){
   var raw = Storage.get("workout-history");
@@ -829,9 +858,11 @@ function goToNextStep() {
     return;
   }
   state.stepIdx += 1; state.phase = "windup";
+  state.nextCueOpen = false;
   startTimedPhase(WINDUP_SECONDS);
   render(); runTimer();
 }
+function toggleNextCue() { state.nextCueOpen = !state.nextCueOpen; render(); }
 function skipPhase() { state.secondsLeft = 0; state.phaseEndTime = null; render(); runTimer(); }
 function togglePause() {
   state.paused = !state.paused;
@@ -1455,9 +1486,36 @@ function copyCalibrationResults() {
   }
 }
 
+/* Retest reminder: the battery is a 4-6 week cadence. Prompt at 4 weeks,
+   flag overdue at 6. A prompt only - the battery is still started by hand. */
+var RETEST_MIN_DAYS = 28;
+var RETEST_OVERDUE_DAYS = 42;
+function retestStatus() {
+  var log = state.calibrationLog;
+  if (!log || !log.length) return null;
+  var last = log[log.length - 1];
+  if (!last || !last.date) return null;
+  var then = new Date(last.date + "T00:00:00");
+  if (isNaN(then.getTime())) return null;
+  var now = new Date();
+  var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  var days = Math.floor((today - then) / 86400000);
+  if (days < 0) days = 0;
+  return { days: days, lastDate: last.date, due: days >= RETEST_MIN_DAYS, overdue: days >= RETEST_OVERDUE_DAYS };
+}
+
 function renderCalibEntry(t) {
   var resuming = state.calib && !state.calib.viewOnly && state.calib.phase !== "done";
-  var html = '<button class="bigbtn" onclick="startCalibration()" style="margin-top:10px;background:rgba(255,255,255,0.06);color:'+t.accent+';border:1px solid '+t.accent+';box-shadow:none;">'+
+  var rs = retestStatus();
+  var html = '';
+  if (rs && rs.due) {
+    var rc = rs.overdue ? "#ff7b86" : "#ff9500";
+    html += '<div class="panel" style="margin-top:10px;border-left:3px solid '+rc+';">'+
+      '<div style="font-size:10px;letter-spacing:1px;color:'+rc+';margin-bottom:4px;">'+(rs.overdue?'RETEST OVERDUE':'RETEST DUE')+'</div>'+
+      '<div style="font-size:11px;color:#cde3ec;line-height:1.55;">Last battery '+rs.lastDate+' ('+rs.days+' days ago). Re-run the battery, then send Nexus the results.</div>'+
+    '</div>';
+  }
+  html += '<button class="bigbtn" onclick="startCalibration()" style="margin-top:10px;background:rgba(255,255,255,0.06);color:'+t.accent+';border:1px solid '+t.accent+';box-shadow:none;">'+
     icoChart(t.accent)+' '+(resuming ? 'RESUME CALIBRATION' : 'CALIBRATE (9 TESTS)')+'</button>';
   if (resuming) {
     html += '<button onclick="calibDiscard()" style="margin-top:8px;width:100%;font-size:10px;letter-spacing:1px;color:'+TEXT_DIM+';padding:6px;">DISCARD SAVED RUN</button>';
@@ -1859,7 +1917,9 @@ function renderActive() {
     '<span class="hdr" style="font-size:13px;color:'+t.accent+';">'+percent+'%</span></div>';
   html += '<div class="panel" style="width:100%;text-align:center;margin-bottom:20px;">'+
     '<div class="hdr" style="font-size:17px;color:#dff3fb;">'+cur.name+'</div>'+
-    '<div style="font-size:11px;color:'+t.accent+';margin-top:4px;">SET '+cur.setIndex+' / '+cur.setTotal+'</div></div>';
+    '<div style="font-size:11px;color:'+t.accent+';margin-top:4px;">SET '+cur.setIndex+' / '+cur.setTotal+'</div>'+
+    (cur.cue ? '<div class="dim" style="font-size:11px;line-height:1.5;margin-top:8px;">'+cur.cue+'</div>' : '')+
+    '</div>';
   html += ringSVG(progress, ringAccent, ringGlow, 240, 10, inner);
 
   /* Feature 2: Next-up preview during rest */
@@ -1868,8 +1928,15 @@ function renderActive() {
     html += '<div class="panel" style="width:100%;margin-top:16px;border-left:3px solid '+t.accent+';">'+
       '<div class="dim" style="font-size:9px;letter-spacing:2px;margin-bottom:4px;">UP NEXT</div>'+
       '<div style="font-size:14px;color:#dff3fb;">'+next.name+'</div>'+
-      '<div style="font-size:11px;color:'+t.accent+';margin-top:2px;">SET '+(next.setIndex)+' / '+next.setTotal+' - '+(next.type==="time"?next.duration+"s":next.repsLabel)+'</div>'+
-    '</div>';
+      '<div style="font-size:11px;color:'+t.accent+';margin-top:2px;">SET '+(next.setIndex)+' / '+next.setTotal+' - '+(next.type==="time"?next.duration+"s":next.repsLabel)+'</div>';
+    if (next.cue) {
+      html += '<button onclick="toggleNextCue()" style="margin-top:10px;font-size:9px;letter-spacing:1px;color:'+TEXT_DIM+';display:flex;align-items:center;gap:5px;">'+
+        icoBookOpen(TEXT_DIM)+(state.nextCueOpen?'HIDE DESCRIPTION':'VIEW DESCRIPTION')+'</button>';
+      if (state.nextCueOpen) {
+        html += '<div style="font-size:11px;color:#cde3ec;line-height:1.55;margin-top:8px;">'+next.cue+'</div>';
+      }
+    }
+    html += '</div>';
   }
 
   /* PR badge - show after recording a set */

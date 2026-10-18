@@ -1724,10 +1724,34 @@ function formatCalibrationResults(results, effort, notes, date) {
   return lines.join("\n");
 }
 
+/* The machine-readable half of COPY RESULTS: what the app computed, and what
+   it refuses to do on its own. This is what comes to Nexus for the structural
+   calls. Plain ASCII, one line per movement. Spec section 10. */
+function formatCalibrationPatch(results, date) {
+  var doses = computeDoses(results);
+  var lines = ["PATCH " + date + " (plan " + APP_VERSION + ")"];
+  BATTERY.forEach(function (t) {
+    var d = doses[t.id];
+    var r = results[t.id] || {};
+    if (!d || d.flag) {
+      lines.push(t.id + ": NOT MEASURED");
+      return;
+    }
+    var line = t.id + ": ";
+    if (d.duration != null) line += "duration " + d.duration;
+    else line += "label " + d.label;
+    if (r.variant) line += " variant " + r.variant;
+    lines.push(line);
+    if (calibRegression(t.id, r)) lines.push("FLAG regression: " + t.id);
+  });
+  return lines.join("\n");
+}
+
 function copyCalibrationResults() {
   var e = state.calibResultView;
   if (!e) return;
-  var txt = formatCalibrationResults(e.results, e.effort || "", e.notes || "", e.date);
+  var txt = formatCalibrationResults(e.results, e.effort || "", e.notes || "", e.date) +
+    "\n\n" + formatCalibrationPatch(e.results, e.date);
   function fallback() {
     var ta = document.createElement("textarea");
     ta.value = txt;

@@ -876,6 +876,53 @@ ok("renderCalibEntry renders the retest banner", /RETEST DUE/.test(src) && /RETE
   }
 }
 
+/* --- 6m. export patch (v8.1) --------------------------------------- */
+{
+  const patchMatch = src.match(/function formatCalibrationPatch[\s\S]*?\n\}/);
+  const rulesMatch2 = src.match(/var CAL_RULES = \{[\s\S]*?\n\};/);
+  const maxMatch2 = src.match(/function calibMax[\s\S]*?\n\}/);
+  const doseMatch2 = src.match(/function computeDoses[\s\S]*?\n\}/);
+  const regMatch2 = src.match(/var CAL_REGRESSION = \{[\s\S]*?\n\};/);
+  const regFn2 = src.match(/function calibRegression[\s\S]*?\n\}/);
+  const batMatch5 = src.match(/var BATTERY = (\[[\s\S]*?\n\]);/);
+  ok("formatCalibrationPatch extractable", !!patchMatch, "not found");
+  ok("COPY RESULTS writes the patch too", /formatCalibrationPatch/.test(src.slice(src.indexOf("function copyCalibrationResults"), src.indexOf("function copyCalibrationResults") + 900)));
+
+  if (patchMatch && rulesMatch2 && maxMatch2 && doseMatch2 && regMatch2 && regFn2 && batMatch5) {
+    try {
+      const ps = {};
+      vm.createContext(ps);
+      vm.runInContext(
+        "var BATTERY = " + batMatch5[1] + ";var APP_VERSION = 'v8.1';" + rulesMatch2[0] + maxMatch2[0] + doseMatch2[0] + regMatch2[0] + regFn2[0] + patchMatch[0],
+        ps, { filename: "patch.js" });
+      const MEASURED = {
+        handstand: { attempts: [11], variant: "chest-to-wall" },
+        tucklever: { value: 12, variant: "tuck" },
+        pike:      { value: 7,  variant: "feet-elevated" },
+        diamond:   { value: 8,  variant: "full" },
+        pullups:   { value: 5,  variant: "strict" },
+        ringrows:  { value: 14, variant: "feet elevated" },
+        scapular:  { value: 9,  variant: "full hang" },
+        hollow:    { value: 21, variant: "arms overhead" },
+        pistol:    { left: 9, right: 9, variant: "assisted" },
+        bulgarian: { left: 12, right: 12, variant: "feet elevated" }
+      };
+      const out = ps.formatCalibrationPatch(MEASURED, "2026-10-15");
+      ok("patch starts with a PATCH + date line", /^PATCH 2026-10-15/.test(out), out.split("\n")[0]);
+      ok("patch names the plan version", /^PATCH 2026-10-15 \(plan v8\.1\)$/.test(out.split("\n")[0]), out.split("\n")[0]);
+      ok("patch carries the handstand dose", /handstand: duration 8/.test(out), out);
+      ok("patch carries a reps label", /pike: label 4-5 reps/.test(out), out);
+      ok("patch carries a per-leg label", /bulgarian: label 8-9 \/ leg/.test(out), out);
+      ok("patch carries the variant when the rung is not the plan's", /pistol: label 3-5 \/ leg variant assisted/.test(out), out);
+      ok("patch is ASCII", out.split("").every(c => c.charCodeAt(0) <= 126), "non-ascii present");
+
+      /* a triggered movement is flagged, not swapped */
+      const trig = ps.formatCalibrationPatch({ pullups: { value: 2, variant: "strict" } }, "2026-10-15");
+      ok("patch flags a regression trigger", /FLAG regression: pullups/.test(trig), trig);
+    } catch (e) { ok("formatCalibrationPatch evaluates with a fixture", false, e.message); }
+  }
+}
+
 /* --- 7. version + assets ------------------------------------------- */
 const verMatch = html.match(/var APP_VERSION = "(v[0-9]+(?:\.[0-9]+)*)"/);
 ok("APP_VERSION present and well formed", !!verMatch, "none found");

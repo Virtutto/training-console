@@ -1157,32 +1157,119 @@ function handleImportFile(e) {
 var BATTERY = [
   { id: "handstand", n: 1, name: "Handstand hold", input: "hold", attempts: 2,
     cues: "Chest or back to the wall, body tight, ribs down. Stop the clock the moment form breaks. Best of 2 attempts.",
-    variants: ["chest-to-wall", "back-to-wall", "wall plank"], restAfter: 180 },
+    variants: ["chest-to-wall", "back-to-wall", "wall plank"], restAfter: 180,
+    rule: "handstand", unit: null, fixedLabel: null,
+    variantNames: { "chest-to-wall": "Chest-to-wall handstand holds",
+                    "back-to-wall": "Back-to-wall handstand holds",
+                    "wall plank": "Wall plank holds" } },
   { id: "tucklever", n: 2, name: "Tuck front lever hold", input: "hold", attempts: 1,
     cues: "Scapulae pulled down and back, flat lower back. Stop the clock when the hips drop.",
-    variants: ["tuck", "band-assisted tuck", "one-leg tuck"], restAfter: 180 },
+    variants: ["tuck", "band-assisted tuck", "one-leg tuck"], restAfter: 180,
+    rule: "skill_hold", unit: null, fixedLabel: null,
+    variantNames: { "tuck": "Tuck front lever holds",
+                    "band-assisted tuck": "Band-assisted tuck front lever holds",
+                    "one-leg tuck": "One-leg tuck front lever holds" } },
   { id: "pike", n: 3, name: "Elevated pike push-up", input: "reps", attempts: 1,
     cues: "Feet elevated, head to the floor each rep, full lockout. Max clean reps.",
-    variants: ["feet-elevated", "floor", "knees"], restAfter: 180 },
+    variants: ["feet-elevated", "floor", "knees"], restAfter: 180,
+    rule: "strength_reps", unit: "reps", fixedLabel: null,
+    variantNames: { "feet-elevated": "Pike push-ups (elevated feet)",
+                    "floor": "Pike push-ups (floor)",
+                    "knees": "Pike push-ups (knees)" } },
   { id: "diamond", n: 4, name: "Diamond push-up", input: "reps", attempts: 1,
     cues: "Full range, elbows tracking back over the hands. Max clean reps.",
-    variants: ["full", "knee", "incline"], restAfter: 240 },
+    variants: ["full", "knee", "incline"], restAfter: 240,
+    rule: "strength_reps", unit: "reps", fixedLabel: null,
+    variantNames: { "full": "Diamond push-ups (full)",
+                    "knee": "Diamond push-ups (knee)",
+                    "incline": "Diamond push-ups (incline)" } },
   { id: "pullups", n: 5, name: "Strict pull-ups", input: "reps", attempts: 1,
     cues: "Dead hang start, chin over the bar, no kipping. If it is under 3, switch variant to ring rows and log those instead.",
-    variants: ["strict", "band-assisted", "ring rows"], restAfter: 180 },
-  { id: "scapular", n: 6, name: "Scapular pull-ups", input: "reps", attempts: 1,
+    variants: ["strict", "band-assisted", "ring rows"], restAfter: 180,
+    rule: "strength_reps", unit: "reps", fixedLabel: null,
+    variantNames: { "strict": "Strict pull-ups",
+                    "band-assisted": "Assisted pull-ups (band)",
+                    "ring rows": "Ring rows" } },
+  { id: "ringrows", n: 6, name: "Ring rows", input: "reps", attempts: 1,
+    cues: "Body straight, pull the chest to the rings, elbows close. Elevate the feet to make it harder. Max clean reps.",
+    variants: ["feet elevated", "floor", "knees bent"], restAfter: 180,
+    rule: "strength_reps", unit: "reps", fixedLabel: null,
+    variantNames: { "feet elevated": "Ring rows (feet elevated)",
+                    "floor": "Ring rows (floor)",
+                    "knees bent": "Ring rows (knees bent)" } },
+  { id: "scapular", n: 7, name: "Scapular pull-ups", input: "reps", attempts: 1,
     cues: "Dead hang, shrug the shoulder blades down and together, 2s hold at the top of each rep.",
-    variants: ["full hang", "feet-assisted"], restAfter: 180 },
-  { id: "hollow", n: 7, name: "Hollow body hold", input: "hold", attempts: 1,
+    variants: ["full hang", "feet-assisted"], restAfter: 180,
+    rule: "fixed", unit: "reps", fixedLabel: "5 reps",
+    variantNames: { "full hang": "Scapular pull-ups",
+                    "feet-assisted": "Scapular pull-ups (feet-assisted)" } },
+  { id: "hollow", n: 8, name: "Hollow body hold", input: "hold", attempts: 1,
     cues: "Lower back glued to the floor. Stop the clock the moment it lifts.",
-    variants: ["arms overhead", "arms at sides", "knees bent"], restAfter: 180 },
-  { id: "pistol", n: 8, name: "Pistol squat", input: "perleg", attempts: 1,
+    variants: ["arms overhead", "arms at sides", "knees bent"], restAfter: 180,
+    rule: "core_hold", unit: null, fixedLabel: null,
+    variantNames: { "arms overhead": "Hollow body hold (arms overhead)",
+                    "arms at sides": "Hollow body hold (arms at sides)",
+                    "knees bent": "Hollow body hold (knees bent)" } },
+  { id: "pistol", n: 9, name: "Pistol squat", input: "perleg", attempts: 1,
     cues: "No bouncing off the bottom, heel down. Max controlled reps per leg.",
-    variants: ["full", "heel-elevated", "box", "assisted"], restAfter: 0 },
-  { id: "bulgarian", n: 9, name: "Bulgarian split squat", input: "perleg", attempts: 1,
-    cues: "Rear foot on a chair or box if that is how you normally do it. Do this straight after test 8. Max reps per leg.",
-    variants: ["feet elevated", "floor"], restAfter: 0 }
+    variants: ["full", "heel-elevated", "box", "assisted"], restAfter: 0,
+    rule: "fixed", unit: "/ leg", fixedLabel: "3-5 / leg",
+    variantNames: { "full": "Pistol squat (full)",
+                    "heel-elevated": "Pistol squat (heel-elevated)",
+                    "box": "Pistol squat (box)",
+                    "assisted": "Pistol squat (assisted)" } },
+  { id: "bulgarian", n: 10, name: "Bulgarian split squat", input: "perleg", attempts: 1,
+    cues: "Rear foot on a chair or box if that is how you normally do it. Do this straight after test 9. Max reps per leg.",
+    variants: ["feet elevated", "floor"], restAfter: 0,
+    rule: "strength_reps", unit: "/ leg", fixedLabel: null,
+    variantNames: { "feet elevated": "Bulgarian split squats (feet elevated)",
+                    "floor": "Bulgarian split squats (floor)" } }
 ];
+
+/* ============================================================
+   CALIBRATION MAPPING ENGINE (v8.1)
+   Spec: docs/superpowers/specs/2026-10-18-calibrate-mode-design.md
+   computeDoses() is PURE - no state, no DOM - so it can be evaluated
+   against a fixture. The Oct 15 2026 measurements must reproduce every
+   value shipped in PLAN v8.0; tests/plan.test.js pins that.
+   ============================================================ */
+var CAL_RULES = {
+  handstand:     { mode: "hold", pct: 0.75, cap: 30   },
+  skill_hold:    { mode: "hold", pct: 0.55, cap: null },
+  core_hold:     { mode: "hold", pct: 0.70, cap: 45   },
+  strength_reps: { mode: "reps", lo: 0.70, hi: 0.80, capMinus: 2, floor: 3 },
+  fixed:         { mode: "fixed" }
+};
+
+/* The measured maximum for a test, whatever shape its result took. */
+function calibMax(r) {
+  if (r == null) return null;
+  if (r.attempts && r.attempts.length) return Math.max.apply(null, r.attempts);
+  if (r.value != null) return r.value;
+  if (r.left != null && r.right != null) return Math.max(r.left, r.right);
+  return null;
+}
+
+function computeDoses(results) {
+  var out = {};
+  BATTERY.forEach(function (t) {
+    var rule = CAL_RULES[t.rule];
+    if (!rule) return;
+    var max = calibMax(results[t.id]);
+    if (max == null || max <= 0) { out[t.id] = { flag: "NOT MEASURED" }; return; }
+    if (rule.mode === "fixed") { out[t.id] = { fixed: true, label: t.fixedLabel }; return; }
+    if (rule.mode === "hold") {
+      var v = Math.floor(rule.pct * max);
+      if (rule.cap != null && v > rule.cap) v = rule.cap;
+      out[t.id] = { duration: v };
+      return;
+    }
+    var bottom = Math.max(rule.floor, Math.floor(rule.lo * max));
+    var top = Math.max(bottom, Math.min(Math.floor(rule.hi * max), max - rule.capMinus));
+    out[t.id] = { label: bottom < top ? (bottom + "-" + top + " " + t.unit) : (bottom + " " + t.unit) };
+  });
+  return out;
+}
 
 var calibTimerId = null;
 
@@ -1516,7 +1603,7 @@ function renderCalibEntry(t) {
     '</div>';
   }
   html += '<button class="bigbtn" onclick="startCalibration()" style="margin-top:10px;background:rgba(255,255,255,0.06);color:'+t.accent+';border:1px solid '+t.accent+';box-shadow:none;">'+
-    icoChart(t.accent)+' '+(resuming ? 'RESUME CALIBRATION' : 'CALIBRATE (9 TESTS)')+'</button>';
+    icoChart(t.accent)+' '+(resuming ? 'RESUME CALIBRATION' : 'CALIBRATE (10 TESTS)')+'</button>';
   if (resuming) {
     html += '<button onclick="calibDiscard()" style="margin-top:8px;width:100%;font-size:10px;letter-spacing:1px;color:'+TEXT_DIM+';padding:6px;">DISCARD SAVED RUN</button>';
   }
@@ -1537,7 +1624,7 @@ function renderCalibration() {
   if (c.phase === "intro") {
     html += '<div class="panel" style="text-align:center;margin-bottom:14px;">'+
       '<div class="hdr" style="font-size:20px;color:'+t.accent+';text-shadow:0 0 12px '+t.glow+';">CALIBRATION BATTERY</div>'+
-      '<div class="dim" style="font-size:11px;margin-top:6px;">9 tests, one max effort each. This is NOT a workout - nothing here counts toward your week.</div></div>';
+      '<div class="dim" style="font-size:11px;margin-top:6px;">10 tests, one max effort each. This is NOT a workout - nothing here counts toward your week.</div></div>';
     html += '<div class="panel" style="margin-bottom:14px;border-left:3px solid #ff9500;">'+
       '<div style="font-size:10px;letter-spacing:1px;color:#ff9500;margin-bottom:6px;">RULES</div>'+
       '<div style="font-size:12px;color:#cde3ec;line-height:1.65;">Do not run within 24h of a hard session, and never on a bouldering day.<br>Rest 2-3 min between tests, 4 min before test 5.<br>Stop at form break, not pain.</div></div>';
@@ -1555,7 +1642,7 @@ function renderCalibration() {
     var attemptN = (br && br.attempts && br.attempts.length) ? br.attempts.length + 1 : 1;
     var selVariant = c.variants[bt.id] || bt.variants[0];
     html += '<div class="panel" style="text-align:center;margin-bottom:14px;">'+
-      '<div class="dim" style="font-size:10px;letter-spacing:2px;">TEST '+bt.n+' OF 9'+(bt.attempts > 1 ? ' - ATTEMPT '+attemptN+' OF 2' : '')+'</div>'+
+      '<div class="dim" style="font-size:10px;letter-spacing:2px;">TEST '+bt.n+' OF 10'+(bt.attempts > 1 ? ' - ATTEMPT '+attemptN+' OF 2' : '')+'</div>'+
       '<div class="hdr" style="font-size:18px;color:'+t.accent+';margin-top:6px;">'+bt.name+'</div>'+
       '<div style="font-size:12px;color:#cde3ec;margin-top:8px;line-height:1.55;">'+bt.cues+'</div>';
     if (br && br.attempts && br.attempts.length) {
@@ -1590,7 +1677,7 @@ function renderCalibration() {
   } else if (c.phase === "log") {
     var lt = BATTERY[c.stepIdx];
     html += '<div class="panel" style="text-align:center;margin-bottom:14px;">'+
-      '<div class="dim" style="font-size:10px;letter-spacing:2px;">TEST '+lt.n+' OF 9 - LOG RESULT</div>'+
+      '<div class="dim" style="font-size:10px;letter-spacing:2px;">TEST '+lt.n+' OF 10 - LOG RESULT</div>'+
       '<div class="hdr" style="font-size:18px;color:'+t.accent+';margin-top:6px;">'+lt.name+'</div>'+
       '<div class="dim" style="font-size:11px;margin-top:6px;">VARIANT: '+(c.variants[lt.id] || lt.variants[0])+'</div></div>';
     html += '<div class="panel" style="margin-bottom:14px;">';
@@ -1627,7 +1714,7 @@ function renderCalibration() {
   } else if (c.phase === "finale") {
     html += '<div class="panel" style="text-align:center;margin-bottom:14px;">'+
       '<div class="hdr" style="font-size:20px;color:'+t.accent+';text-shadow:0 0 12px '+t.glow+';">BATTERY COMPLETE</div>'+
-      '<div class="dim" style="font-size:11px;margin-top:6px;">All 9 tests logged. Two optional fields, then save.</div></div>';
+      '<div class="dim" style="font-size:11px;margin-top:6px;">All 10 tests logged. Two optional fields, then save.</div></div>';
     html += '<div class="panel" style="margin-bottom:14px;">'+
       '<label class="fieldlabel">EFFORT (1-10, 10 IS EVERYTHING YOU HAD)</label>'+
       '<input type="number" id="calibEffortInput" min="1" max="10" value="'+(c.effort||'')+'" style="margin-bottom:12px;" />'+

@@ -274,7 +274,7 @@ if (PLAN) {
   ok("BATTERY evaluates to an array", Array.isArray(BATTERY), typeof BATTERY);
 
   if (Array.isArray(BATTERY)) {
-    ok("BATTERY has exactly 9 tests", BATTERY.length === 9, "n=" + BATTERY.length);
+    ok("BATTERY has exactly 10 tests", BATTERY.length === 10, "n=" + BATTERY.length);
     ok("BATTERY ids are unique", new Set(BATTERY.map(t => t.id)).size === BATTERY.length,
       BATTERY.map(t => t.id).join(","));
     BATTERY.forEach(function (t, i) {
@@ -290,12 +290,42 @@ if (PLAN) {
     const byId = {};
     BATTERY.forEach(t => { byId[t.id] = t; });
     ok("test 1 (handstand) allows 2 attempts", byId.handstand && byId.handstand.attempts === 2, "attempts=" + (byId.handstand || {}).attempts);
-    ["tucklever", "pike", "diamond", "pullups", "scapular", "hollow", "pistol", "bulgarian"].forEach(function (id) {
+    ["tucklever", "pike", "diamond", "pullups", "ringrows", "scapular", "hollow", "pistol", "bulgarian"].forEach(function (id) {
       ok("test " + id + " is single-attempt", byId[id] && byId[id].attempts === 1, "attempts=" + (byId[id] || {}).attempts);
     });
     ok("4 min rest before test 5", byId.diamond && byId.diamond.restAfter === 240, "restAfter=" + (byId.diamond || {}).restAfter);
     ok("no rest between pistol and Bulgarian (straight after)", byId.pistol && byId.pistol.restAfter === 0 && byId.bulgarian && byId.bulgarian.restAfter === 0);
-    ok("BATTERY order matches the field sheet", BATTERY.map(t => t.id).join(",") === "handstand,tucklever,pike,diamond,pullups,scapular,hollow,pistol,bulgarian");
+    ok("BATTERY order matches the field sheet", BATTERY.map(t => t.id).join(",") === "handstand,tucklever,pike,diamond,pullups,ringrows,scapular,hollow,pistol,bulgarian");
+    ok("ring rows sits immediately after pull-ups", BATTERY[5] && BATTERY[5].id === "ringrows", "index 5 = " + (BATTERY[5] || {}).id);
+
+    /* v8.1: every test declares how it maps (spec 5.5) */
+    const RULE_NAMES = ["handstand", "skill_hold", "core_hold", "strength_reps", "fixed"];
+    BATTERY.forEach(function (t, i) {
+      const tag = "BATTERY[" + i + "] (" + t.id + ")";
+      ok(tag + " declares a known rule", RULE_NAMES.indexOf(t.rule) > -1, "rule=" + t.rule);
+      ok(tag + " declares a non-empty variantNames map",
+        t.variantNames && typeof t.variantNames === "object" && Object.keys(t.variantNames).length > 0);
+      if (t.variantNames) {
+        const missing = t.variants.filter(v => !t.variantNames[v]);
+        ok(tag + " variantNames is total over variants", missing.length === 0, "missing: " + missing.join(","));
+        const bad = Object.keys(t.variantNames).filter(k => t.variants.indexOf(k) < 0);
+        ok(tag + " variantNames has no rung the test does not offer", bad.length === 0, "extra: " + bad.join(","));
+      }
+      if (t.rule === "strength_reps") {
+        ok(tag + " declares unit reps|/ leg", t.unit === "reps" || t.unit === "/ leg", "unit=" + t.unit);
+        ok(tag + " fixedLabel is null", t.fixedLabel === null, "fixedLabel=" + t.fixedLabel);
+      }
+      if (t.rule === "fixed") {
+        ok(tag + " declares a non-empty fixedLabel", typeof t.fixedLabel === "string" && t.fixedLabel.trim().length > 0, "fixedLabel=" + t.fixedLabel);
+      }
+    });
+    /* every variantNames value must be unique across all tests: the reverse
+       index in the app depends on it (spec 9.2) */
+    const allNames = [];
+    BATTERY.forEach(t => { if (t.variantNames) Object.keys(t.variantNames).forEach(k => allNames.push(t.variantNames[k])); });
+    ok("variantNames values are unique across all tests",
+      new Set(allNames).size === allNames.length,
+      allNames.filter((n, i) => allNames.indexOf(n) !== i).join(","));
   }
 
   /* flow functions */
@@ -310,7 +340,7 @@ if (PLAN) {
   ok('references "calibration-log"', src.indexOf('"calibration-log"') > -1);
 
   /* overview entry button (the visible way in) */
-  ok("overview renders the CALIBRATE entry button", html.indexOf("CALIBRATE (9 TESTS)") > -1);
+  ok("overview renders the CALIBRATE entry button", html.indexOf("CALIBRATE (10 TESTS)") > -1);
 
   /* export rides the battery log along */
   ok("export payload includes calibrationLog", /calibrationLog:\s*state\.calibrationLog/.test(src));
@@ -331,6 +361,7 @@ if (PLAN) {
           pike: { value: 11, variant: "feet-elevated" },
           diamond: { value: 18, variant: "full" },
           pullups: { value: 7, variant: "strict" },
+          ringrows: { value: 14, variant: "feet elevated" },
           scapular: { value: 14, variant: "full hang" },
           hollow: { value: 41, variant: "arms overhead" },
           pistol: { left: 4, right: 3, variant: "full" },
@@ -341,11 +372,11 @@ if (PLAN) {
       };
       const out = fsb.formatCalibrationResults(fixture.results, fixture.effort, fixture.notes, fixture.date);
       ok("copy block starts with CALIBRATION + date", out.split("\n")[0] === "CALIBRATION 2026-10-16", out.split("\n")[0]);
-      for (let n = 1; n <= 9; n++) {
+      for (let n = 1; n <= 10; n++) {
         ok("copy block numbers test " + n, new RegExp("^" + n + " ", "m").test(out), "missing line " + n);
       }
       ok("copy block shows best-of-2 for test 1", out.indexOf("22s") > -1 && out.indexOf("12") > -1);
-      ok("copy block shows L/R for pistol", /8 Pistol squat: L 4 \/ R 3 \(full\)/.test(out));
+      ok("copy block shows L/R for pistol", /9 Pistol squat: L 4 \/ R 3 \(full\)/.test(out));
       ok("copy block carries effort + notes", out.indexOf("effort: 8") > -1 && out.indexOf("notes: left shoulder tight") > -1);
       ok("copy block omits empty optional lines", !/effort:\s*$/m.test(formatFixtureEmpty(fsb)) , "empty effort line present");
     } catch (e) { ok("formatCalibrationResults evaluates", false, e.message); }
@@ -574,6 +605,80 @@ if (rsMatch) {
   } catch (e) { ok("retestStatus evaluates with fixtures", false, e.message); }
 }
 ok("renderCalibEntry renders the retest banner", /RETEST DUE/.test(src) && /RETEST OVERDUE/.test(src));
+
+/* --- 6h. calibration mapping engine (v8.1, Oct 18 2026) ------------- */
+/* computeDoses() must reproduce EVERY value shipped in PLAN v8.0 from the
+   Oct 15 2026 measurements. If a rule is edited and the numbers drift, this
+   fails. Spec: 2026-10-18-calibrate-mode-design.md section 5.3. */
+{
+  const rulesMatch = src.match(/var CAL_RULES = \{[\s\S]*?\n\};/);
+  const maxMatch = src.match(/function calibMax[\s\S]*?\n\}/);
+  const doseMatch = src.match(/function computeDoses[\s\S]*?\n\}/);
+  const batMatch2 = src.match(/var BATTERY = (\[[\s\S]*?\n\]);/);
+  ok("CAL_RULES block found", !!rulesMatch, "var CAL_RULES {...} not matched");
+  ok("calibMax extractable", !!maxMatch, "not found");
+  ok("computeDoses extractable", !!doseMatch, "not found");
+  if (rulesMatch && maxMatch && doseMatch && batMatch2) {
+    try {
+      const es = {};
+      vm.createContext(es);
+      vm.runInContext("var BATTERY = " + batMatch2[1] + ";" + rulesMatch[0] + maxMatch[0] + doseMatch[0], es, { filename: "engine.js" });
+      const CAL_RULES = es.CAL_RULES;
+      ok("CAL_RULES has exactly 5 classes", Object.keys(CAL_RULES).length === 5, Object.keys(CAL_RULES).join(","));
+      ["handstand", "skill_hold", "core_hold", "strength_reps", "fixed"].forEach(function (k) {
+        ok("CAL_RULES." + k + " exists with a valid mode",
+          !!CAL_RULES[k] && ["hold", "reps", "fixed"].indexOf(CAL_RULES[k].mode) > -1,
+          JSON.stringify(CAL_RULES[k]));
+      });
+
+      /* the Oct 15 2026 battery, verbatim */
+      const MEASURED = {
+        handstand: { attempts: [11], variant: "chest-to-wall" },
+        tucklever: { value: 12, variant: "tuck" },
+        pike:      { value: 7,  variant: "feet-elevated" },
+        diamond:   { value: 8,  variant: "full" },
+        pullups:   { value: 5,  variant: "strict" },
+        scapular:  { value: 9,  variant: "full hang" },
+        hollow:    { value: 21, variant: "arms overhead" },
+        pistol:    { left: 9, right: 9, variant: "assisted" },
+        bulgarian: { left: 12, right: 12, variant: "feet elevated" }
+      };
+      /* the values actually shipped in PLAN v8.0 */
+      const V80 = {
+        handstand: { duration: 8 },
+        tucklever: { duration: 6 },
+        pike:      { label: "4-5 reps" },
+        diamond:   { label: "5-6 reps" },
+        pullups:   { label: "3 reps" },
+        scapular:  { fixed: true, label: "5 reps" },
+        hollow:    { duration: 14 },
+        pistol:    { fixed: true, label: "3-5 / leg" },
+        bulgarian: { label: "8-9 / leg" }
+      };
+      const got = es.computeDoses(MEASURED);
+      Object.keys(V80).forEach(function (id) {
+        ok("computeDoses reproduces v8.0 for " + id + " (" + JSON.stringify(V80[id]) + ")",
+          JSON.stringify(got[id]) === JSON.stringify(V80[id]), "got " + JSON.stringify(got[id]));
+      });
+
+      /* degenerate cases (spec 5.4) */
+      ok("max 0 -> NOT MEASURED flag",
+        es.computeDoses({ pike: { value: 0 } }).pike.flag === "NOT MEASURED",
+        JSON.stringify(es.computeDoses({ pike: { value: 0 } }).pike));
+      ok("missing measurement -> NOT MEASURED flag",
+        es.computeDoses({}).hollow.flag === "NOT MEASURED");
+      ok("max below the reps floor -> single clamped value",
+        es.computeDoses({ pike: { value: 3 } }).pike.label === "3 reps",
+        JSON.stringify(es.computeDoses({ pike: { value: 3 } }).pike));
+      ok("hold above the cap -> clamped to 30s",
+        es.computeDoses({ handstand: { attempts: [40] } }).handstand.duration === 30);
+      ok("skill_hold is uncapped (60s -> 33s)",
+        es.computeDoses({ tucklever: { value: 60 } }).tucklever.duration === 33);
+      ok("core_hold caps at 45s",
+        es.computeDoses({ hollow: { value: 100 } }).hollow.duration === 45);
+    } catch (e) { ok("calibration engine evaluates", false, e.message); }
+  }
+}
 
 /* --- 7. version + assets ------------------------------------------- */
 const verMatch = html.match(/var APP_VERSION = "(v[0-9]+(?:\.[0-9]+)*)"/);

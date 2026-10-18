@@ -856,6 +856,26 @@ ok("renderCalibEntry renders the retest banner", /RETEST DUE/.test(src) && /RETE
   }
 }
 
+/* --- 6l. stale overlay banner (v8.1) ------------------------------- */
+{
+  ok("function calibStale defined", /function\s+calibStale\s*\(/.test(src));
+  ok("stale banner copy present", /CALIBRATION STALE/.test(src));
+  const staleMatch = src.match(/function calibStale[\s\S]*?\n\}/);
+  if (staleMatch) {
+    try {
+      const ss = {};
+      vm.createContext(ss);
+      vm.runInContext("var APP_VERSION = 'v8.1';var state = { planCalibration: null };" + staleMatch[0] +
+        ";function probe(pc){ state.planCalibration = pc; return calibStale(); }",
+        ss, { filename: "stale.js" });
+      ok("no overlay -> not stale", ss.probe(null) === false);
+      ok("matching version -> not stale", ss.probe({ planVersion: "v8.1", doses: {} }) === false);
+      ok("older version -> stale", ss.probe({ planVersion: "v8.0", doses: {} }) === true);
+      ok("missing planVersion -> stale", ss.probe({ doses: {} }) === true);
+    } catch (e) { ok("calibStale evaluates with a fixture", false, e.message); }
+  }
+}
+
 /* --- 7. version + assets ------------------------------------------- */
 const verMatch = html.match(/var APP_VERSION = "(v[0-9]+(?:\.[0-9]+)*)"/);
 ok("APP_VERSION present and well formed", !!verMatch, "none found");

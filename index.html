@@ -1673,6 +1673,14 @@ function calibSkipApply() {
   render();
 }
 
+/* The overlay WINS over a newer PLAN, but it must never do so silently.
+   Adam sees that the numbers predate the current plan and can re-apply. */
+function calibStale() {
+  var pc = state.planCalibration;
+  if (!pc || !pc.doses) return false;
+  return pc.planVersion !== APP_VERSION;
+}
+
 function calibReturn() {
   clearTimeout(calibTimerId);
   state.calib = null;
@@ -1772,6 +1780,12 @@ function renderCalibEntry(t) {
     html += '<div class="panel" style="margin-top:10px;border-left:3px solid '+rc+';">'+
       '<div style="font-size:10px;letter-spacing:1px;color:'+rc+';margin-bottom:4px;">'+(rs.overdue?'RETEST OVERDUE':'RETEST DUE')+'</div>'+
       '<div style="font-size:11px;color:#cde3ec;line-height:1.55;">Last battery '+rs.lastDate+' ('+rs.days+' days ago). Re-run the battery, then send Nexus the results.</div>'+
+    '</div>';
+  }
+  if (calibStale()) {
+    html += '<div class="panel" style="margin-top:10px;border-left:3px solid #b48cff;">'+
+      '<div style="font-size:10px;letter-spacing:1px;color:#b48cff;margin-bottom:4px;">CALIBRATION STALE</div>'+
+      '<div style="font-size:11px;color:#cde3ec;line-height:1.55;">Your applied doses were computed for plan '+state.planCalibration.planVersion+'. The plan is now '+APP_VERSION+'. They still apply - re-run the battery to refresh them.</div>'+
     '</div>';
   }
   html += '<button class="bigbtn" onclick="startCalibration()" style="margin-top:10px;background:rgba(255,255,255,0.06);color:'+t.accent+';border:1px solid '+t.accent+';box-shadow:none;">'+
@@ -2050,6 +2064,13 @@ function renderOverview() {
 
   if (!wakeLockSupported) {
     html += '<div class="dim" style="font-size:10px;text-align:center;margin-bottom:10px;">!! Screen wake-lock unsupported in this browser - increase your device auto-lock timeout for long sessions.</div>';
+  }
+
+  if (calibStale()) {
+    html += '<div class="panel" style="margin-bottom:12px;border-left:3px solid #b48cff;">'+
+      '<div style="font-size:10px;letter-spacing:1px;color:#b48cff;margin-bottom:4px;">CALIBRATION STALE</div>'+
+      '<div style="font-size:11px;color:#cde3ec;line-height:1.55;">Doses applied from the '+state.planCalibration.sourceDate+' battery were computed for plan '+state.planCalibration.planVersion+'. The plan is now '+APP_VERSION+'.</div>'+
+    '</div>';
   }
 
   html += '<div style="position:relative;margin-bottom:16px;">'+

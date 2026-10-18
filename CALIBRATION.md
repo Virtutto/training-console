@@ -46,26 +46,32 @@ Variant used: `strict / band-assisted / ring rows`
 
 RESULT:
 
-### 6. Scapular pull-ups - max clean reps
+### 6. Ring rows - max clean reps
+Body straight, pull the chest to the rings, elbows close. Elevate the feet to make it harder.
+Variant used: `feet elevated / floor / knees bent`
+
+RESULT:
+
+### 7. Scapular pull-ups - max clean reps
 Dead hang, shrug the shoulder blades down and together, 2s hold at the top of each rep.
 Variant used: `full hang / feet-assisted`
 
 RESULT:
 
-### 7. Hollow body hold (floor) - max seconds
+### 8. Hollow body hold (floor) - max seconds
 Lower back glued to the floor. Stop the clock the moment it lifts.
 Variant used: `arms overhead / arms at sides / knees bent`
 
 RESULT:
 
-### 8. Pistol squat - max controlled reps per leg
+### 9. Pistol squat - max controlled reps per leg
 No bouncing off the bottom, heel down (or note if elevated).
 Variant used: `full / heel-elevated / box / assisted`
 
 LEFT RESULT:
 RIGHT RESULT:
 
-### 9. Bulgarian split squat - max reps per leg (do this straight after test 8)
+### 10. Bulgarian split squat - max reps per leg (do this straight after test 9)
 Rear foot on a chair/box if that is how you normally do it.
 Variant used: `feet elevated / floor`
 

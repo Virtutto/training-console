@@ -885,6 +885,8 @@ ok("renderCalibEntry renders the retest banner", /RETEST DUE/.test(src) && /RETE
   const regMatch2 = src.match(/var CAL_REGRESSION = \{[\s\S]*?\n\};/);
   const regFn2 = src.match(/function calibRegression[\s\S]*?\n\}/);
   const batMatch5 = src.match(/var BATTERY = (\[[\s\S]*?\n\]);/);
+  const verForPatch = html.match(/var APP_VERSION = "(v[0-9]+(?:\.[0-9]+)*)"/);
+  const realVer = verForPatch ? verForPatch[1] : "v8.1";
   ok("formatCalibrationPatch extractable", !!patchMatch, "not found");
   ok("COPY RESULTS writes the patch too", /formatCalibrationPatch/.test(src.slice(src.indexOf("function copyCalibrationResults"), src.indexOf("function copyCalibrationResults") + 900)));
 
@@ -893,7 +895,7 @@ ok("renderCalibEntry renders the retest banner", /RETEST DUE/.test(src) && /RETE
       const ps = {};
       vm.createContext(ps);
       vm.runInContext(
-        "var BATTERY = " + batMatch5[1] + ";var APP_VERSION = 'v8.1';" + rulesMatch2[0] + maxMatch2[0] + doseMatch2[0] + regMatch2[0] + regFn2[0] + patchMatch[0],
+        "var BATTERY = " + batMatch5[1] + ";var APP_VERSION = " + JSON.stringify(realVer) + ";" + rulesMatch2[0] + maxMatch2[0] + doseMatch2[0] + regMatch2[0] + regFn2[0] + patchMatch[0],
         ps, { filename: "patch.js" });
       const MEASURED = {
         handstand: { attempts: [11], variant: "chest-to-wall" },
@@ -909,7 +911,7 @@ ok("renderCalibEntry renders the retest banner", /RETEST DUE/.test(src) && /RETE
       };
       const out = ps.formatCalibrationPatch(MEASURED, "2026-10-15");
       ok("patch starts with a PATCH + date line", /^PATCH 2026-10-15/.test(out), out.split("\n")[0]);
-      ok("patch names the plan version", /^PATCH 2026-10-15 \(plan v8\.1\)$/.test(out.split("\n")[0]), out.split("\n")[0]);
+      ok("patch names the plan version", out.split("\n")[0] === "PATCH 2026-10-15 (plan " + realVer + ")", out.split("\n")[0]);
       ok("patch carries the handstand dose", /handstand: duration 8/.test(out), out);
       ok("patch carries a reps label", /pike: label 4-5 reps/.test(out), out);
       ok("patch carries a per-leg label", /bulgarian: label 8-9 \/ leg/.test(out), out);

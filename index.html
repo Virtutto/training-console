@@ -109,11 +109,11 @@ var PLAN = {
       Object.assign({name:"Ankle mobility", cue:"Knee-to-wall: toes ~10cm back, drive the knee to touch without the heel lifting."}, T(45))
     ],
     main: [
-      Object.assign({name:"Chest-to-wall handstand holds", cue:"Chest and toes to the wall, push tall, squeeze glutes, ribs down. Stop at the first form break.", sets:5, rest:90}, T(8)),
+      Object.assign({name:"Chest-to-wall handstand holds", cal:"handstand", cue:"Chest and toes to the wall, push tall, squeeze glutes, ribs down. Stop at the first form break.", sets:5, rest:90}, T(8)),
       Object.assign({name:"Heel/toe pulls (chest-to-wall)", cue:"Chest to wall, shift weight onto the hands, lift one heel then the other. Slow.", sets:3, rest:60}, R("4 reps")),
-      Object.assign({name:"Pike push-ups (elevated feet)", cue:"Hips high, head between the hands, elbows track back.", sets:3, rest:90}, R("4-5 reps")),
-      Object.assign({name:"Diamond push-ups (full)", cue:"Hands together under the chest, elbows tucked, body one line.", sets:3, rest:75}, R("5-6 reps")),
-      Object.assign({name:"Pistol squat (assisted)", cue:"Hold the box, sit back and down on one leg, heel flat, knee tracks over the toe. Progress by lowering the box, not by adding reps.", sets:2, rest:90}, R("3-5 / leg"))
+      Object.assign({name:"Pike push-ups (elevated feet)", cal:"pike", cue:"Hips high, head between the hands, elbows track back.", sets:3, rest:90}, R("4-5 reps")),
+      Object.assign({name:"Diamond push-ups (full)", cal:"diamond", cue:"Hands together under the chest, elbows tucked, body one line.", sets:3, rest:75}, R("5-6 reps")),
+      Object.assign({name:"Pistol squat (assisted)", cal:"pistol", cue:"Hold the box, sit back and down on one leg, heel flat, knee tracks over the toe. Progress by lowering the box, not by adding reps.", sets:2, rest:90}, R("3-5 / leg"))
     ],
     cooldown: [
       Object.assign({name:"Shoulder stretch", cue:"Hold and breathe, no bouncing."}, T(30)),
@@ -124,16 +124,16 @@ var PLAN = {
   Tuesday: { mode: "boulder", title: "BOULDERING", subtitle: "Bouldering session - log only, no bar work. Optional 6 min handstand block if the grip is still fresh; skip it if it is not." },
   Wednesday: { mode: "session", title: "PULL + FRONT LEVER", subtitle: "Bar day - front lever holds + vertical pulling",
     warmup: [
-      Object.assign({name:"Scapular pull-ups", cue:"Dead hang, pull the shoulder blades down and back without bending the elbows."}, R("5 reps")),
+      Object.assign({name:"Scapular pull-ups", cal:"scapular", cue:"Dead hang, pull the shoulder blades down and back without bending the elbows."}, R("5 reps")),
       Object.assign({name:"Dead hang (light)", cue:"Full hang, shoulders active, breathe. Easy - this is a warm-up."}, T(20)),
       Object.assign({name:"Wrist prep", cue:"Circles, prayer stretch, floor rocking. Mandatory before any hand work."}, T(60)),
       Object.assign({name:"Ankle mobility", cue:"Knee-to-wall: toes ~10cm back, drive the knee to touch without the heel lifting."}, T(45))
     ],
     main: [
-      Object.assign({name:"Chest-to-wall handstand holds", cue:"Chest and toes to the wall, push tall, squeeze glutes, ribs down. Stop at the first form break.", sets:3, rest:90}, T(8)),
-      Object.assign({name:"Tuck front lever holds", cue:"Hips level with the shoulders, arms straight, scapulae pulled down. Stop when the hips drop.", sets:5, rest:90}, T(6)),
-      Object.assign({name:"Strict pull-ups", cue:"Dead hang start, chin over the bar, no kipping, full extension every rep.", sets:4, rest:120}, R("3 reps")),
-      Object.assign({name:"Hollow body hold (arms at sides)", cue:"Low back pressed to the floor, ribs down, legs straight and low.", sets:3, rest:60}, T(14))
+      Object.assign({name:"Chest-to-wall handstand holds", cal:"handstand", cue:"Chest and toes to the wall, push tall, squeeze glutes, ribs down. Stop at the first form break.", sets:3, rest:90}, T(8)),
+      Object.assign({name:"Tuck front lever holds", cal:"tucklever", cue:"Hips level with the shoulders, arms straight, scapulae pulled down. Stop when the hips drop.", sets:5, rest:90}, T(6)),
+      Object.assign({name:"Strict pull-ups", cal:"pullups", cue:"Dead hang start, chin over the bar, no kipping, full extension every rep.", sets:4, rest:120}, R("3 reps")),
+      Object.assign({name:"Hollow body hold (arms at sides)", cal:"hollow", cue:"Low back pressed to the floor, ribs down, legs straight and low.", sets:3, rest:60}, T(14))
     ],
     cooldown: [
       Object.assign({name:"Lat stretch", cue:"Hold and breathe, no bouncing."}, T(30)),
@@ -148,10 +148,10 @@ var PLAN = {
       Object.assign({name:"Wrist prep", cue:"Circles, prayer stretch, floor rocking. Mandatory before any hand work."}, T(60))
     ],
     main: [
-      Object.assign({name:"Chest-to-wall handstand holds", cue:"Chest and toes to the wall, push tall, squeeze glutes, ribs down. Stop at the first form break.", sets:3, rest:90}, T(8)),
-      Object.assign({name:"Pistol squat (assisted)", cue:"Hold the box, sit back and down on one leg, heel flat, knee tracks over the toe. Progress by lowering the box, not by adding reps.", sets:4, rest:90}, R("3-5 / leg")),
-      Object.assign({name:"Bulgarian split squats (feet elevated)", cue:"Rear foot on the box, front shin vertical, drop straight down.", sets:3, rest:75}, R("8-9 / leg")),
-      Object.assign({name:"Hollow body hold (arms at sides)", cue:"Low back pressed to the floor, ribs down, legs straight and low.", sets:3, rest:60}, T(14))
+      Object.assign({name:"Chest-to-wall handstand holds", cal:"handstand", cue:"Chest and toes to the wall, push tall, squeeze glutes, ribs down. Stop at the first form break.", sets:3, rest:90}, T(8)),
+      Object.assign({name:"Pistol squat (assisted)", cal:"pistol", cue:"Hold the box, sit back and down on one leg, heel flat, knee tracks over the toe. Progress by lowering the box, not by adding reps.", sets:4, rest:90}, R("3-5 / leg")),
+      Object.assign({name:"Bulgarian split squats (feet elevated)", cal:"bulgarian", cue:"Rear foot on the box, front shin vertical, drop straight down.", sets:3, rest:75}, R("8-9 / leg")),
+      Object.assign({name:"Hollow body hold (arms at sides)", cal:"hollow", cue:"Low back pressed to the floor, ribs down, legs straight and low.", sets:3, rest:60}, T(14))
     ],
     cooldown: [
       Object.assign({name:"Hip flexor stretch", cue:"Tuck the pelvis, squeeze the glute, hold."}, T(30)),
@@ -168,11 +168,11 @@ var PLAN = {
       Object.assign({name:"Ankle mobility", cue:"Knee-to-wall: toes ~10cm back, drive the knee to touch without the heel lifting."}, T(45))
     ],
     main: [
-      Object.assign({name:"Chest-to-wall handstand holds", cue:"Chest and toes to the wall, push tall, squeeze glutes, ribs down. Stop at the first form break.", sets:6, rest:90}, T(8)),
+      Object.assign({name:"Chest-to-wall handstand holds", cal:"handstand", cue:"Chest and toes to the wall, push tall, squeeze glutes, ribs down. Stop at the first form break.", sets:6, rest:90}, T(8)),
       Object.assign({name:"Heel/toe pulls (chest-to-wall)", cue:"Chest to wall, shift weight onto the hands, lift one heel then the other. Slow.", sets:3, rest:60}, R("4 reps")),
-      Object.assign({name:"Pike push-ups (elevated feet)", cue:"Hips high, head between the hands, elbows track back.", sets:4, rest:90}, R("4-5 reps")),
-      Object.assign({name:"Diamond push-ups (full)", cue:"Hands together under the chest, elbows tucked, body one line.", sets:4, rest:75}, R("5-6 reps")),
-      Object.assign({name:"Hollow body hold (arms at sides)", cue:"Low back pressed to the floor, ribs down, legs straight and low.", sets:3, rest:60}, T(14))
+      Object.assign({name:"Pike push-ups (elevated feet)", cal:"pike", cue:"Hips high, head between the hands, elbows track back.", sets:4, rest:90}, R("4-5 reps")),
+      Object.assign({name:"Diamond push-ups (full)", cal:"diamond", cue:"Hands together under the chest, elbows tucked, body one line.", sets:4, rest:75}, R("5-6 reps")),
+      Object.assign({name:"Hollow body hold (arms at sides)", cal:"hollow", cue:"Low back pressed to the floor, ribs down, legs straight and low.", sets:3, rest:60}, T(14))
     ],
     cooldown: [
       Object.assign({name:"Chest doorway stretch", cue:"Elbow at shoulder height, lean through, hold."}, T(30)),
@@ -187,12 +187,12 @@ var PLAN = {
       Object.assign({name:"Ankle mobility", cue:"Knee-to-wall: toes ~10cm back, drive the knee to touch without the heel lifting."}, T(45))
     ],
     main: [
-      Object.assign({name:"Chest-to-wall handstand holds", cue:"Chest and toes to the wall, push tall, squeeze glutes, ribs down. Stop at the first form break.", sets:3, rest:90}, T(8)),
-      Object.assign({name:"Tuck front lever holds", cue:"Hips level with the shoulders, arms straight, scapulae pulled down. Stop when the hips drop.", sets:4, rest:90}, T(6)),
+      Object.assign({name:"Chest-to-wall handstand holds", cal:"handstand", cue:"Chest and toes to the wall, push tall, squeeze glutes, ribs down. Stop at the first form break.", sets:3, rest:90}, T(8)),
+      Object.assign({name:"Tuck front lever holds", cal:"tucklever", cue:"Hips level with the shoulders, arms straight, scapulae pulled down. Stop when the hips drop.", sets:4, rest:90}, T(6)),
       /* UNMEASURED - the battery covered the vertical pull only (5 strict);
          dial foot elevation so the 8-10 stays honest until a row test exists */
-      Object.assign({name:"Ring rows", cue:"Body straight, pull the chest to the rings, elbows close. Elevate the feet to progress.", sets:4, rest:90}, R("8-10 reps")),
-      Object.assign({name:"Hollow body hold (arms at sides)", cue:"Low back pressed to the floor, ribs down, legs straight and low.", sets:4, rest:60}, T(14))
+      Object.assign({name:"Ring rows", cal:"ringrows", cue:"Body straight, pull the chest to the rings, elbows close. Elevate the feet to progress.", sets:4, rest:90}, R("8-10 reps")),
+      Object.assign({name:"Hollow body hold (arms at sides)", cal:"hollow", cue:"Low back pressed to the floor, ribs down, legs straight and low.", sets:4, rest:60}, T(14))
     ],
     cooldown: [
       Object.assign({name:"Lat stretch", cue:"Hold and breathe, no bouncing."}, T(30)),
@@ -234,14 +234,36 @@ var MUSCLE_COLORS = { chest:"#ff4d5e", shoulders:"#ff9500", triceps:"#ffd60a", b
    PER-EXERCISE OVERRIDES (persist forever until edited/reset)
    ============================================================ */
 function overrideKey(day, section, idx){ return day + "|" + section + "|" + idx; }
+/* The calibration overlay, resolved for one PLAN exercise. Keyed by the
+   stable movement id in `cal`, NOT by name: the name changes when the
+   variant does, so a name-keyed overlay would orphan itself the moment it
+   did its job. Returns a patch object, or null. */
+function calibOverlayFor(base) {
+  if (!base || !base.cal) return null;
+  var pc = state.planCalibration;
+  if (!pc || !pc.doses) return null;
+  var d = pc.doses[base.cal];
+  if (!d) return null;
+  var patch = {};
+  if (d.duration != null) patch.duration = d.duration;
+  if (d.label != null) patch.label = d.label;
+  if (d.variant != null) {
+    var t = null;
+    BATTERY.forEach(function(b){ if (b.id === base.cal) t = b; });
+    if (t && t.variantNames && t.variantNames[d.variant]) patch.name = t.variantNames[d.variant];
+  }
+  return Object.keys(patch).length ? patch : null;
+}
+
 function getEffective(day, section, idx) {
   var base;
   if (section === "WARMUP") base = PLAN[day].warmup[idx];
   else if (section === "COOLDOWN") base = PLAN[day].cooldown[idx];
   else base = PLAN[day].main[idx];
+  var cal = calibOverlayFor(base);
   var ov = state.overrides[overrideKey(day, section, idx)];
-  if (!ov) return base;
-  return Object.assign({}, base, ov);
+  if (!cal && !ov) return base;
+  return Object.assign({}, base, cal || {}, ov || {});
 }
 
 function buildQueue(day) {
@@ -512,6 +534,7 @@ var state = {
   calibrationLog: [],
   calib: null,
   calibResultView: null,
+  planCalibration: null,
   nextCueOpen: false,
 };
 (function loadAll(){
@@ -549,6 +572,14 @@ var state = {
   state.exerciseSuggestions = rawSuggestions ? JSON.parse(rawSuggestions) : {};
   var rawCalLog = Storage.get("calibration-log");
   state.calibrationLog = rawCalLog ? JSON.parse(rawCalLog) : [];
+  var rawPlanCal = Storage.get("plan-calibration");
+  if (rawPlanCal) {
+    try { state.planCalibration = JSON.parse(rawPlanCal); } catch(e) { state.planCalibration = null; }
+  }
+  /* A malformed overlay must never be able to break the plan. */
+  if (state.planCalibration && (!state.planCalibration.doses || typeof state.planCalibration.doses !== "object")) {
+    state.planCalibration = null;
+  }
   var rawCalSession = Storage.get("calibration-session");
   if (rawCalSession) {
     try { state.calib = JSON.parse(rawCalSession); } catch(e) { state.calib = null; }
@@ -1105,6 +1136,7 @@ function exportData() {
     measurements: state.measurements,
     exerciseSuggestions: state.exerciseSuggestions,
     calibrationLog: state.calibrationLog,
+    planCalibration: state.planCalibration,
     exportedAt: new Date().toISOString()
   }, null, 2);
   var blob = new Blob([payload], { type: "application/json" });
@@ -1137,6 +1169,7 @@ function handleImportFile(e) {
       if (Array.isArray(data.measurements)) { state.measurements = data.measurements; Storage.set("body-measurements", JSON.stringify(data.measurements)); }
       if (data.exerciseSuggestions) { state.exerciseSuggestions = data.exerciseSuggestions; Storage.set("exercise-suggestions", JSON.stringify(data.exerciseSuggestions)); }
       if (Array.isArray(data.calibrationLog)) { state.calibrationLog = data.calibrationLog; Storage.set("calibration-log", JSON.stringify(data.calibrationLog)); }
+      if (data.planCalibration && typeof data.planCalibration === "object") { state.planCalibration = data.planCalibration; Storage.set("plan-calibration", JSON.stringify(state.planCalibration)); }
       state.boulderLoggedToday = state.history.some(function(r){ return r.date === todayISO && r.type === "boulder"; });
       render();
       alert("Import complete.");
@@ -1149,7 +1182,7 @@ function handleImportFile(e) {
 }
 
 /* ============================================================
-   CALIBRATION BATTERY (9-test, one-shot data collection)
+   CALIBRATION BATTERY (10-test, one-shot data collection)
    Deliberately parallel to the workout engine: a battery run must
    NEVER touch PLAN, day completion, PRs, set logs or workout history.
    Spec: docs/superpowers/specs/2026-10-15-calibration-logger-design.md

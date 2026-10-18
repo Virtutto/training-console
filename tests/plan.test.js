@@ -680,6 +680,80 @@ ok("renderCalibEntry renders the retest banner", /RETEST DUE/.test(src) && /RETE
   }
 }
 
+/* --- 6i. calibration overlay (v8.1) -------------------------------- */
+/* The overlay is keyed by a STABLE movement id, never by exercise name,
+   because the name changes when the variant does (spec 8.2). */
+{
+  const batMatch3 = src.match(/var BATTERY = (\[[\s\S]*?\n\]);/);
+  const ovMatch = src.match(/function calibOverlayFor[\s\S]*?\n\}/);
+  const geMatch = src.match(/function getEffective[\s\S]*?\n\}/);
+  ok("calibOverlayFor extractable", !!ovMatch, "not found");
+  ok("getEffective extractable", !!geMatch, "not found");
+  ok("state.planCalibration exists", /planCalibration\s*:/.test(src));
+  ok('references "plan-calibration"', src.indexOf('"plan-calibration"') > -1);
+  ok("export payload includes planCalibration", /planCalibration:\s*state\.planCalibration/.test(src));
+
+  /* every cal key on a PLAN exercise must be a known battery test id */
+  if (PLAN && batMatch3) {
+    const ids = [];
+    const bs = {};
+    vm.createContext(bs);
+    vm.runInContext("var BATTERY = " + batMatch3[1], bs, { filename: "battery3.js" });
+    bs.BATTERY.forEach(t => ids.push(t.id));
+    const calKeys = [];
+    DAYS.forEach(function (d) {
+      const day = PLAN[d];
+      if (!day || day.mode !== "session") return;
+      ["warmup", "main", "cooldown"].forEach(function (sec) {
+        (day[sec] || []).forEach(function (ex) { if (ex.cal) calKeys.push(ex.cal); });
+      });
+    });
+    const unknown = calKeys.filter(k => ids.indexOf(k) < 0);
+    ok("every cal key is a known battery test id", unknown.length === 0, unknown.join(","));
+    const missing = ids.filter(id => calKeys.indexOf(id) < 0);
+    ok("every battery test has at least one plan exercise", missing.length === 0, missing.join(","));
+  }
+
+  /* precedence, evaluated against a fixture: override > overlay > source */
+  if (ovMatch && geMatch && batMatch3) {
+    try {
+      const os = {};
+      vm.createContext(os);
+      vm.runInContext(
+        "var BATTERY = " + batMatch3[1] + ";" +
+        "var PLAN = { Monday: { mode:'session', warmup:[], main:[{name:'Pike push-ups (elevated feet)', cal:'pike', type:'reps', label:'4-5 reps'}], cooldown:[] } };" +
+        "var state = { overrides:{}, planCalibration:{ doses:{ pike:{ label:'6-8 reps' } } } };" +
+        "function overrideKey(d,s,i){ return d+'|'+s+'|'+i; }" +
+        ovMatch[0] + geMatch[0] +
+        ";function probe(ov){ state.overrides = ov; return getEffective('Monday','MAIN',0); }",
+        os, { filename: "overlay.js" });
+      const src0 = os.probe({});
+      ok("overlay beats the plan source", src0.label === "6-8 reps", JSON.stringify(src0));
+      const ovr = os.probe({ "Monday|MAIN|0": { label: "9 reps" } });
+      ok("user override beats the overlay", ovr.label === "9 reps", JSON.stringify(ovr));
+      ok("the base name survives the merge", src0.name === "Pike push-ups (elevated feet)", src0.name);
+    } catch (e) { ok("calibOverlayFor evaluates with a fixture", false, e.message); }
+  }
+
+  /* an exercise with no cal key is untouched by a populated overlay */
+  if (ovMatch && geMatch) {
+    try {
+      const ns = {};
+      vm.createContext(ns);
+      vm.runInContext(
+        "var BATTERY = [];" +
+        "var PLAN = { Monday: { mode:'session', warmup:[], main:[{name:'Shoulder CARs', type:'time', duration:90}], cooldown:[] } };" +
+        "var state = { overrides:{}, planCalibration:{ doses:{ shoulder:{ duration: 5 } } } };" +
+        "function overrideKey(d,s,i){ return d+'|'+s+'|'+i; }" +
+        ovMatch[0] + geMatch[0] +
+        ";var out = getEffective('Monday','MAIN',0);",
+        ns, { filename: "nocal.js" });
+      ok("an exercise with no cal key is untouched by the overlay",
+        ns.out.duration === 90, JSON.stringify(ns.out));
+    } catch (e) { ok("no-cal passthrough evaluates", false, e.message); }
+  }
+}
+
 /* --- 7. version + assets ------------------------------------------- */
 const verMatch = html.match(/var APP_VERSION = "(v[0-9]+(?:\.[0-9]+)*)"/);
 ok("APP_VERSION present and well formed", !!verMatch, "none found");

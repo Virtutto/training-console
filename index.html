@@ -1341,7 +1341,7 @@ function muscleTagFor(name) {
 var calibTimerId = null;
 
 function saveCalibState() {
-  if (!state.calib || state.calib.phase === "done" || state.calib.viewOnly) {
+  if (!state.calib || state.calib.phase === "done" || state.calib.phase === "review" || state.calib.viewOnly) {
     try { Storage.set("calibration-session", ""); } catch(e) {}
     return;
   }
@@ -1551,7 +1551,7 @@ function calibSaveBattery() {
   state.calibrationLog = log;
   Storage.set("calibration-log", JSON.stringify(log));
   state.calibResultView = entry;
-  c.phase = "done";
+  c.phase = "review";
   Storage.set("calibration-session", "");
   triggerAlert(1046, 0.3, 200);
   releaseWakeLock();
@@ -1565,6 +1565,111 @@ function calibViewLast() {
   state.calibResultView = last;
   state.calib = { date: last.date, phase: "done", viewOnly: true, stepIdx: 0,
     variants: {}, results: last.results, effort: last.effort || "", notes: last.notes || "" };
+  render();
+}
+
+/* Regression triggers: a measured value that says the movement itself is the
+   problem, not the number. FLAGGED, never swapped - a swap is a structural
+   change and comes to Nexus. The handstand trigger (<15s) is deliberately
+   RETIRED: v8.0 overrode it because chest-to-wall work IS the fix for the
+   lean, not a regression away from it. Spec section 11. */
+var CAL_REGRESSION = {
+  tucklever: function (r) { var m = calibMax(r); return m != null && m < 5; },
+  pike:      function (r) { var m = calibMax(r); return m != null && m < 5; },
+  hollow:    function (r) { var m = calibMax(r); return m != null && m < 20; },
+  pistol:    function (r) { var m = calibMax(r); return m != null && m < 1; },
+  pullups:   function (r) { var m = calibMax(r); return m != null && m < 3; }
+};
+
+function calibRegression(id, r) {
+  var f = CAL_REGRESSION[id];
+  return f ? !!f(r) : false;
+}
+
+function calibDoseText(ex) {
+  if (!ex) return "-";
+  if (ex.type === "time") return ex.duration + "s";
+  return ex.label;
+}
+
+/* The dose the plan is actually showing for a movement right now - read
+   through getEffective, so a user override is reflected, not the source. */
+function calibCurrentFor(movementId) {
+  var found = null;
+  DAY_ORDER.forEach(function (d) {
+    var day = PLAN[d];
+    if (!day || day.mode !== "session") return;
+    [["warmup", "WARMUP"], ["main", "MAIN"], ["cooldown", "COOLDOWN"]].forEach(function (pair) {
+      (day[pair[0]] || []).forEach(function (ex, i) {
+        if (ex.cal === movementId && !found) found = getEffective(d, pair[1], i);
+      });
+    });
+  });
+  return found;
+}
+
+function calibReviewRows() {
+  var c = state.calib;
+  if (!c || !c.results) return [];
+  var doses = computeDoses(c.results);
+  var rows = [];
+  BATTERY.forEach(function (t) {
+    var d = doses[t.id];
+    var cur = calibCurrentFor(t.id);
+    var nowText = calibDoseText(cur);
+    if (!d || d.flag) {
+      rows.push({ id: t.id, name: (cur && cur.name) || t.name, now: nowText, next: "-", flag: "NOT MEASURED", variant: "" });
+      return;
+    }
+    var next = d.duration != null ? d.duration + "s" : d.label;
+    var r = c.results[t.id] || {};
+    var newName = (r.variant && t.variantNames && t.variantNames[r.variant]) || null;
+    var variantText = (newName && cur && newName !== cur.name) ? (cur.name + " -> " + newName) : "";
+    rows.push({
+      id: t.id,
+      name: (cur && cur.name) || t.name,
+      now: nowText,
+      next: next,
+      flag: calibRegression(t.id, r) ? "REGRESSION" : "",
+      variant: variantText
+    });
+  });
+  return rows;
+}
+
+/* APPLY: write the overlay. Doses and variants only - never set counts, never
+   structure. Keyed by movement id so the name can change safely. */
+function calibApply() {
+  var c = state.calib;
+  if (!c || !c.results) return;
+  var doses = computeDoses(c.results);
+  var out = {};
+  BATTERY.forEach(function (t) {
+    var d = doses[t.id];
+    if (!d || d.flag) return;
+    var entry = {};
+    if (d.duration != null) entry.duration = d.duration;
+    if (d.label != null) entry.label = d.label;
+    var r = c.results[t.id] || {};
+    if (r.variant && t.variantNames && t.variantNames[r.variant]) entry.variant = r.variant;
+    out[t.id] = entry;
+  });
+  state.planCalibration = {
+    planVersion: APP_VERSION,
+    appliedAt: new Date().toISOString(),
+    sourceDate: c.date,
+    doses: out
+  };
+  Storage.set("plan-calibration", JSON.stringify(state.planCalibration));
+  c.phase = "done";
+  triggerAlert(1046, 0.3, 200);
+  render();
+}
+
+function calibSkipApply() {
+  var c = state.calib;
+  if (!c) return;
+  c.phase = "done";
   render();
 }
 
@@ -1677,6 +1782,12 @@ function renderCalibEntry(t) {
   return html;
 }
 
+/* The review screen's flag vocabulary. REGRESSION and NOT MEASURED are computed
+   by calibReviewRows(); STRUCTURAL is a Nexus call - a movement added or
+   removed, a day swap or a frequency change - which the battery cannot compute,
+   so no row carries it unless a future rule sets it. Spec section 7. */
+var CAL_FLAGS = { "REGRESSION": "#ff7b86", "STRUCTURAL": "#ff9500", "NOT MEASURED": "#8a9aa5" };
+
 function renderCalibration() {
   var t = theme();
   var c = state.calib;
@@ -1685,7 +1796,7 @@ function renderCalibration() {
 
   html += '<div class="row" style="width:100%;margin-bottom:10px;">'+
     '<span class="dim" style="font-size:10px;letter-spacing:1px;">CALIBRATION'+
-    (c.phase !== "intro" && c.phase !== "done" ? ' - TEST '+(c.stepIdx+1)+'/'+BATTERY.length : '')+'</span>'+
+    (c.phase !== "intro" && c.phase !== "done" && c.phase !== "review" ? ' - TEST '+(c.stepIdx+1)+'/'+BATTERY.length : '')+'</span>'+
     '<button onclick="exitCalibration()" style="color:'+TEXT_DIM+';">'+icoX(TEXT_DIM)+'</button></div>';
 
   if (c.phase === "intro") {
@@ -1788,6 +1899,26 @@ function renderCalibration() {
       '<label class="fieldlabel">NOTES - WHAT HURT, WHAT FELT WRONG</label>'+
       '<textarea id="calibNotesInput" rows="3" style="width:100%;border-radius:10px;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.12);color:#dff3fb;padding:10px;font-family:inherit;font-size:13px;resize:vertical;">'+(c.notes||'')+'</textarea></div>';
     html += '<button class="bigbtn" onclick="calibSaveBattery()" style="background:'+t.accent+';color:#02080a;box-shadow:0 0 24px '+t.glow+';">'+icoCheck("#02080a")+' SAVE BATTERY</button>';
+  } else if (c.phase === "review") {
+    var rows = calibReviewRows();
+    var changed = rows.filter(function(r){ return (r.next !== r.now) || r.variant; }).length;
+    html += '<div class="panel" style="text-align:center;margin-bottom:14px;">'+
+      '<div class="hdr" style="font-size:20px;color:'+t.accent+';text-shadow:0 0 12px '+t.glow+';">REVIEW</div>'+
+      '<div class="dim" style="font-size:11px;margin-top:6px;">'+changed+' of '+rows.length+' movements would change. Nothing is applied until you tap APPLY.</div></div>';
+    html += '<div class="panel" style="margin-bottom:14px;">';
+    rows.forEach(function(r){
+      var same = (r.next === r.now) && !r.variant;
+      html += '<div style="padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.05);'+(same?'opacity:0.55;':'')+'">'+
+        '<div style="display:flex;justify-content:space-between;gap:10px;font-size:12px;">'+
+        '<span style="color:#cde3ec;">'+r.name+'</span>'+
+        '<span style="color:'+t.accent+';white-space:nowrap;">'+r.now+' -> '+r.next+'</span></div>'+
+        (r.variant ? '<div style="font-size:10px;color:#b48cff;margin-top:3px;">VARIANT: '+r.variant+'</div>' : '')+
+        (r.flag ? '<div style="font-size:10px;color:'+(CAL_FLAGS[r.flag] || "#ff9500")+';margin-top:3px;letter-spacing:1px;">'+r.flag+'</div>' : '')+
+        '</div>';
+    });
+    html += '</div>';
+    html += '<button class="bigbtn" onclick="calibApply()" style="background:'+t.accent+';color:#02080a;box-shadow:0 0 24px '+t.glow+';">'+icoCheck("#02080a")+' APPLY TO PLAN</button>';
+    html += '<button class="bigbtn" onclick="calibSkipApply()" style="margin-top:10px;background:rgba(255,255,255,0.06);color:'+t.accent+';border:1px solid rgba(255,255,255,0.12);box-shadow:none;">DISCARD - CHANGE NOTHING</button>';
   } else if (c.phase === "done") {
     var e = state.calibResultView || c;
     html += '<div class="panel" style="text-align:center;margin-bottom:14px;">'+

@@ -813,6 +813,49 @@ ok("renderCalibEntry renders the retest banner", /RETEST DUE/.test(src) && /RETE
   }
 }
 
+/* --- 6k. review gate and apply (v8.1) ------------------------------ */
+{
+  ["calibReviewRows", "calibApply", "calibSkipApply", "calibCurrentFor", "calibDoseText", "calibRegression"].forEach(function (fn) {
+    ok("function " + fn + " defined", new RegExp("function\\s+" + fn + "\\s*\\(").test(src), "not found");
+  });
+  ok('review phase is reachable', /phase === "review"/.test(src));
+  ok("review screen offers APPLY and DISCARD", /APPLY TO PLAN/.test(src) && /DISCARD - CHANGE NOTHING/.test(src));
+  ok("review screen renders the three flags",
+    /REGRESSION/.test(src) && /STRUCTURAL/.test(src) && /NOT MEASURED/.test(src));
+  ok("review is not persisted as an in-progress run",
+    /phase === "done" \|\| state\.calib\.viewOnly/.test(src) || /viewOnly/.test(src.slice(src.indexOf("function saveCalibState"), src.indexOf("function startCalibration"))));
+
+  /* the retired handstand trigger must be ABSENT from the trigger table */
+  const regMatch = src.match(/var CAL_REGRESSION = \{[\s\S]*?\n\};/);
+  ok("CAL_REGRESSION block found", !!regMatch, "not matched");
+  if (regMatch) {
+    ok("the handstand regression trigger is retired", regMatch[0].indexOf("handstand") < 0,
+      "handstand still present in CAL_REGRESSION");
+    ["tucklever", "pike", "hollow", "pistol", "pullups"].forEach(function (id) {
+      ok("CAL_REGRESSION keeps the " + id + " trigger", regMatch[0].indexOf(id) > -1);
+    });
+  }
+
+  /* the trigger behaviour, evaluated */
+  const regFn = src.match(/function calibRegression[\s\S]*?\n\}/);
+  if (regMatch && regFn) {
+    try {
+      const rs = {};
+      vm.createContext(rs);
+      vm.runInContext("function calibMax(r){ if (r == null) return null; if (r.value != null) return r.value; if (r.left != null && r.right != null) return Math.max(r.left, r.right); return null; }" +
+        regMatch[0] + regFn[0] +
+        ";function probe(id, v){ return calibRegression(id, { value: v }); }",
+        rs, { filename: "reg.js" });
+      ok("pull-ups at 2 reps triggers", rs.probe("pullups", 2) === true);
+      ok("pull-ups at 3 reps does not trigger", rs.probe("pullups", 3) === false);
+      ok("tuck lever at 4s triggers", rs.probe("tucklever", 4) === true);
+      ok("pike at 4 reps triggers", rs.probe("pike", 4) === true);
+      ok("hollow at 19s triggers", rs.probe("hollow", 19) === true);
+      ok("handstand is not a trigger any more", rs.probe("handstand", 5) === false);
+    } catch (e) { ok("calibRegression evaluates with a fixture", false, e.message); }
+  }
+}
+
 /* --- 7. version + assets ------------------------------------------- */
 const verMatch = html.match(/var APP_VERSION = "(v[0-9]+(?:\.[0-9]+)*)"/);
 ok("APP_VERSION present and well formed", !!verMatch, "none found");

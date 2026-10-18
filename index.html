@@ -1304,6 +1304,40 @@ function computeDoses(results) {
   return out;
 }
 
+/* Muscle tags keyed by MOVEMENT, not by exercise name. MUSCLE_TAGS is keyed by
+   name and stays exactly as it is (so the orphan-tag check and the stats tab
+   are undisturbed); this table is the fallback that keeps a variant name from
+   silently counting as zero volume. Spec section 9.2. */
+var CAL_MOVEMENT_TAGS = {
+  handstand: { shoulders: 3, core: 2, forearms: 1, traps: 1 },
+  tucklever: { lats: 3, core: 2, rear_delts: 2, forearms: 1 },
+  pike:      { shoulders: 3, chest: 1, triceps: 2 },
+  diamond:   { chest: 2, triceps: 3 },
+  pullups:   { lats: 3, biceps: 2, forearms: 2, rear_delts: 1 },
+  ringrows:  { lats: 2, biceps: 2, rear_delts: 2, forearms: 1 },
+  scapular:  { lats: 2, rear_delts: 2, forearms: 1 },
+  hollow:    { core: 3 },
+  pistol:    { quads: 3, glutes: 2, core: 1 },
+  bulgarian: { quads: 3, glutes: 2, hamstrings: 1 }
+};
+
+/* name -> movement id, built once at load from every test's variantNames */
+var CAL_NAME_TO_MOVEMENT = (function(){
+  var m = {};
+  BATTERY.forEach(function(t){
+    if (!t.variantNames) return;
+    Object.keys(t.variantNames).forEach(function(k){ m[t.variantNames[k]] = t.id; });
+  });
+  return m;
+})();
+
+function muscleTagFor(name) {
+  if (MUSCLE_TAGS[name]) return MUSCLE_TAGS[name];
+  var mv = CAL_NAME_TO_MOVEMENT[name];
+  if (mv && CAL_MOVEMENT_TAGS[mv]) return CAL_MOVEMENT_TAGS[mv];
+  return null;
+}
+
 var calibTimerId = null;
 
 function saveCalibState() {
@@ -2476,7 +2510,7 @@ function renderStats() {
     /* Count sets from this week's session logs */
     state.setLogs.forEach(function(sl){
       if (sl.date >= weekStartISO && sl.date <= weekEndISO) {
-        var tags = MUSCLE_TAGS[sl.exercise];
+        var tags = muscleTagFor(sl.exercise);
         if (tags) {
           Object.keys(tags).forEach(function(mg){
             muscleVolume[mg] = (muscleVolume[mg] || 0) + tags[mg];

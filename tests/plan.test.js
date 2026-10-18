@@ -19,6 +19,7 @@ const SW_PATH = path.join(__dirname, "..", "sw.js");
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MODES = ["session", "boulder", "rest"];
+const MUSCLE_GROUPS_LIST = ["chest", "shoulders", "triceps", "biceps", "lats", "rear_delts", "core", "quads", "hamstrings", "glutes", "forearms", "traps"];
 
 let pass = 0;
 const failures = [];
@@ -751,6 +752,64 @@ ok("renderCalibEntry renders the retest banner", /RETEST DUE/.test(src) && /RETE
       ok("an exercise with no cal key is untouched by the overlay",
         ns.out.duration === 90, JSON.stringify(ns.out));
     } catch (e) { ok("no-cal passthrough evaluates", false, e.message); }
+  }
+}
+
+/* --- 6j. movement tags for variant names (v8.1) -------------------- */
+/* If a retest moves Adam from assisted to box pistols, the plan name becomes
+   "Pistol squat (box)", which has no MUSCLE_TAGS entry - and the volume panel
+   would silently count it as ZERO. CAL_MOVEMENT_TAGS tags by MOVEMENT so a
+   variant name still resolves. Spec section 9. */
+{
+  const mtMatch = src.match(/var CAL_MOVEMENT_TAGS = \{[\s\S]*?\n\};/);
+  const revMatch = src.match(/var CAL_NAME_TO_MOVEMENT = \(function\(\)\{[\s\S]*?\n\}\)\(\);/);
+  const fnMatch = src.match(/function muscleTagFor[\s\S]*?\n\}/);
+  const batMatch4 = src.match(/var BATTERY = (\[[\s\S]*?\n\]);/);
+  ok("CAL_MOVEMENT_TAGS block found", !!mtMatch, "not matched");
+  ok("CAL_NAME_TO_MOVEMENT block found", !!revMatch, "not matched");
+  ok("muscleTagFor extractable", !!fnMatch, "not found");
+  ok("the volume panel uses muscleTagFor", /muscleTagFor\(sl\.exercise\)/.test(src));
+  ok("the EXERCISE MAPPING panel still renders MUSCLE_TAGS keys only",
+    /Object\.keys\(MUSCLE_TAGS\)\.forEach/.test(src));
+
+  if (mtMatch && revMatch && fnMatch && batMatch4) {
+    try {
+      const ms = {};
+      vm.createContext(ms);
+      vm.runInContext(
+        "var MUSCLE_TAGS = { 'Pistol squat (assisted)': { quads:3, glutes:2, core:1 }, 'Ring rows': { lats:2 } };" +
+        "var BATTERY = " + batMatch4[1] + ";" +
+        mtMatch[0] + revMatch[0] + fnMatch[0],
+        ms, { filename: "tags.js" });
+      const ids = ms.BATTERY.map(t => t.id);
+      const keys = Object.keys(ms.CAL_MOVEMENT_TAGS);
+      ok("CAL_MOVEMENT_TAGS keys are exactly the battery test ids",
+        keys.length === ids.length && ids.every(id => keys.indexOf(id) > -1),
+        "keys=" + keys.join(",") + " ids=" + ids.join(","));
+      const badKeys = [];
+      keys.forEach(function (k) {
+        Object.keys(ms.CAL_MOVEMENT_TAGS[k] || {}).forEach(function (mg) {
+          if (MUSCLE_GROUPS_LIST.indexOf(mg) < 0) badKeys.push(k + "." + mg);
+        });
+      });
+      ok("every muscle key in CAL_MOVEMENT_TAGS is a known MUSCLE_GROUPS entry",
+        badKeys.length === 0, badKeys.join(" | "));
+      const empty = keys.filter(k => Object.keys(ms.CAL_MOVEMENT_TAGS[k] || {}).length === 0);
+      ok("no CAL_MOVEMENT_TAGS entry is empty", empty.length === 0, empty.join(","));
+
+      /* the reverse index must be total over every variantNames value */
+      const allNames = [];
+      ms.BATTERY.forEach(t => { if (t.variantNames) Object.keys(t.variantNames).forEach(k => allNames.push(t.variantNames[k])); });
+      const unresolved = allNames.filter(n => !ms.CAL_NAME_TO_MOVEMENT[n]);
+      ok("the reverse index resolves every variant name", unresolved.length === 0, unresolved.join(","));
+
+      /* the behaviour that matters: a variant name still counts volume */
+      const box = ms.muscleTagFor("Pistol squat (box)");
+      ok("a variant name resolves to its movement's tags", !!box && box.quads === 3, JSON.stringify(box));
+      const exact = ms.muscleTagFor("Pistol squat (assisted)");
+      ok("an exact MUSCLE_TAGS hit still wins", !!exact && exact.quads === 3, JSON.stringify(exact));
+      ok("an unknown name resolves to null", ms.muscleTagFor("Nonexistent Exercise") === null);
+    } catch (e) { ok("movement tags evaluate with a fixture", false, e.message); }
   }
 }
 

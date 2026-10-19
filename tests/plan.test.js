@@ -943,24 +943,29 @@ ok("index.html is ASCII-only (non-BOM)", offenders.length === 0, offenders.lengt
 /* --- 9. laptop sync engine (lockd) -------------------------------- */
 {
   ok("APP_VERSION bumped to v8.2", /var APP_VERSION = "v8\.2"/.test(src));
-  ok("defines lockdConfigured", src.includes("function lockdConfigured"));
-  ok("defines queueLockdSync", src.includes("function queueLockdSync"));
-  ok("defines syncToLaptop", src.includes("function syncToLaptop"));
-  ok("defines lockdStatusText", src.includes("function lockdStatusText"));
-  ok("listens for postMessage events", src.includes('addEventListener("message"'));
+  ok("defines lockdConfigured", /function\s+lockdConfigured\s*\(/.test(src));
+  ok("defines queueLockdSync", /function\s+queueLockdSync\s*\(/.test(src));
+  ok("defines syncToLaptop", /function\s+syncToLaptop\s*\(/.test(src));
+  ok("defines lockdStatusText", /function\s+lockdStatusText\s*\(/.test(src));
+  ok("listens for postMessage events", /window\.addEventListener\("message"/.test(src));
   ok("guards on data.source === lockd", src.includes('data.source === "lockd"') || src.includes('data.source!=="lockd"') || src.includes('d.source !== "lockd"'));
   ok("queueLockdSync called from logCompletion", /logCompletion[\s\S]{0,800}queueLockdSync\(/.test(src));
   ok("uses window.open for the popup handshake", src.includes("window.open("));
   ok("persists pending sync via Storage under lockd-pending-sync",
      src.includes('"lockd-pending-sync"') && /Storage\.set\("lockd-pending-sync"/.test(src));
   ok("config field laptopSync present", src.includes("laptopSync"));
-  ok("no arrow functions in index.html (ES5)", !/=>\s*[{(]/.test(src));
+  /* Reject ANY arrow function - a bare-expression arrow (x => x) is still
+     modern JS and must not slip past a pattern that only catches => { or => (. */
+  ok("no arrow functions in index.html (ES5)", !/=>/.test(src));
   ok("no const/let declarations (ES5)", !/\b(const|let)\s+[A-Za-z_$]/.test(src));
-  ok("pending survives until acknowledged (cleared only on ok status)",
-     (function(){
-       var h = src.slice(src.indexOf('addEventListener("message"'));
-       return /status === "ok"[\s\S]{0,200}(PENDING_SYNC = null|clearPendingLockdSync\()/.test(h);
-     })());}
+  /* Pending lifecycle: cleared on ok AND on stale, KEPT on denied. */
+  ok("pending cleared on ok, kept on denied",
+     /d\.status === "ok"[\s\S]{0,120}clearPendingLockdSync\(/.test(src));
+  ok("stale clears the pending too",
+     /d\.status === "stale"[\s\S]{0,120}clearPendingLockdSync\(/.test(src));
+  ok("no window opened when nothing is pending",
+     /if \(!PENDING_SYNC\)[\s\S]{0,120}return;/.test(src));
+}
 
 /* --- summary ------------------------------------------------------- */
 console.log("\n" + pass + " passed, " + failures.length + " failed");

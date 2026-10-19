@@ -538,6 +538,14 @@ var state = {
   planCalibration: null,
   nextCueOpen: false,
 };
+
+/* LAPTOP SYNC (lockd) state - declared before the boot block so loadAll
+   can restore a pending sync without a later initialiser clobbering it. */
+var laptopSync = { url: "", token: "" };
+var PENDING_SYNC = null;
+var SYNC_WAITING = false;
+var SYNC_STATUS = "";
+
 (function loadAll(){
   var raw = Storage.get("workout-history");
   state.history = raw ? JSON.parse(raw) : [];
@@ -952,11 +960,6 @@ function returnFromComplete() { state.view = "overview"; Storage.set("active-ses
    forbid auto-opening a window), then the user taps SYNC to open the
    daemon popup, which postMessages the result back to this window.
    ============================================================ */
-var laptopSync = { url: "", token: "" };
-var PENDING_SYNC = null;
-var SYNC_WAITING = false;
-var SYNC_STATUS = "";
-
 (function loadLaptopSync(){
   var raw = Storage.get("laptop-sync");
   if (!raw) return;
@@ -969,7 +972,9 @@ var SYNC_STATUS = "";
 })();
 
 function lockdConfigured() {
-  return !!(laptopSync.url && laptopSync.token);
+  var url = (laptopSync.url || "").trim();
+  var token = (laptopSync.token || "").trim();
+  return /^https?:\/\//i.test(url) && token.length > 0;
 }
 
 function saveLockdConfig() {
@@ -996,11 +1001,12 @@ function lockdStatusText() {
 
 function syncToLaptop() {
   if (!lockdConfigured()) { SYNC_STATUS = "Not configured - set the laptop URL and token in the panel below."; render(); return; }
-  var d = PENDING_SYNC || { date: localISO(new Date()), type: "workout" };
-  var url = laptopSync.url.replace(/\/$/, "") +
+  if (!PENDING_SYNC) { SYNC_STATUS = "Nothing to sync - log a session first."; render(); return; }
+  var d = PENDING_SYNC;
+  var url = laptopSync.url.trim().replace(/\/$/, "") +
             "/sync?date=" + encodeURIComponent(d.date) +
             "&type=" + encodeURIComponent(d.type) +
-            "&token=" + encodeURIComponent(laptopSync.token);
+            "&token=" + encodeURIComponent(laptopSync.token.trim());
   SYNC_WAITING = true;
   SYNC_STATUS = "Waiting...";
   var win = window.open(url, "lockdSync", "width=420,height=240");
@@ -1014,13 +1020,19 @@ function syncToLaptop() {
 window.addEventListener("message", function (ev) {
   var d = ev.data;
   if (!d || d.source !== "lockd") return;
+  /* A late result from a previous popup must not touch the current pending. */
+  if (PENDING_SYNC && d.date !== PENDING_SYNC.date) return;
+  SYNC_WAITING = false;
   if (d.status === "ok") {
     clearPendingLockdSync();
-    SYNC_WAITING = false;
-    SYNC_STATUS = "Logged " + d.date + " (" + d.type + ")";
+    SYNC_STATUS = "Logged " + d.date + " (" + d.type + ").";
+  } else if (d.status === "stale") {
+    clearPendingLockdSync();
+    SYNC_STATUS = "That date has expired - log today's session again.";
+  } else if (d.status === "denied") {
+    SYNC_STATUS = "Laptop denied the sync - check the token and retry.";
   } else {
-    SYNC_WAITING = false;
-    SYNC_STATUS = "Laptop said: " + d.status + " - tap SYNC to retry";
+    SYNC_STATUS = "Laptop said: " + d.status + " - tap SYNC to retry.";
   }
   render();
 });

@@ -67,7 +67,7 @@ function loadApp() {
     body: { appendChild() {}, removeChild() {} }
   };
 
-  const windowStub = { location: { reload() {} }, performance: { now: () => Date.now() } };
+  const windowStub = { location: { reload() {} }, performance: { now: () => Date.now() }, addEventListener() {}, removeEventListener() {} };
   const navigatorStub = {
     vibrate() {},
     wakeLock: { request: () => Promise.resolve({}) },

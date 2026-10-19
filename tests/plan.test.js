@@ -940,6 +940,28 @@ for (let i = 0; i < html.length; i++) {
 }
 ok("index.html is ASCII-only (non-BOM)", offenders.length === 0, offenders.length + " offender(s): " + JSON.stringify(offenders.slice(0, 8)));
 
+/* --- 9. laptop sync engine (lockd) -------------------------------- */
+{
+  ok("APP_VERSION bumped to v8.2", /var APP_VERSION = "v8\.2"/.test(src));
+  ok("defines lockdConfigured", src.includes("function lockdConfigured"));
+  ok("defines queueLockdSync", src.includes("function queueLockdSync"));
+  ok("defines syncToLaptop", src.includes("function syncToLaptop"));
+  ok("defines lockdStatusText", src.includes("function lockdStatusText"));
+  ok("listens for postMessage events", src.includes('addEventListener("message"'));
+  ok("guards on data.source === lockd", src.includes('data.source === "lockd"') || src.includes('data.source!=="lockd"') || src.includes('d.source !== "lockd"'));
+  ok("queueLockdSync called from logCompletion", /logCompletion[\s\S]{0,800}queueLockdSync\(/.test(src));
+  ok("uses window.open for the popup handshake", src.includes("window.open("));
+  ok("persists pending sync via Storage under lockd-pending-sync",
+     src.includes('"lockd-pending-sync"') && /Storage\.set\("lockd-pending-sync"/.test(src));
+  ok("config field laptopSync present", src.includes("laptopSync"));
+  ok("no arrow functions in index.html (ES5)", !/=>\s*[{(]/.test(src));
+  ok("no const/let declarations (ES5)", !/\b(const|let)\s+[A-Za-z_$]/.test(src));
+  ok("pending survives until acknowledged (cleared only on ok status)",
+     (function(){
+       var h = src.slice(src.indexOf('addEventListener("message"'));
+       return /status === "ok"[\s\S]{0,200}(PENDING_SYNC = null|clearPendingLockdSync\()/.test(h);
+     })());}
+
 /* --- summary ------------------------------------------------------- */
 console.log("\n" + pass + " passed, " + failures.length + " failed");
 if (failures.length) { console.log("failures:"); failures.forEach(f => console.log(" - " + f)); process.exit(1); }

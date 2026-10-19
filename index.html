@@ -201,7 +201,7 @@ var PLAN = {
   }
 };
 var WINDUP_SECONDS = 5;
-var APP_VERSION = "v8.1";
+var APP_VERSION = "v8.2";
 
 /* ============================================================
    MUSCLE GROUP TAGS (exercise -> muscle groups + weight)
@@ -585,6 +585,10 @@ var state = {
   if (rawCalSession) {
     try { state.calib = JSON.parse(rawCalSession); } catch(e) { state.calib = null; }
   }
+  var rawPendingSync = Storage.get("lockd-pending-sync");
+  if (rawPendingSync) {
+    try { PENDING_SYNC = JSON.parse(rawPendingSync); } catch(e) { PENDING_SYNC = null; }
+  }
   /* Only restore calibration runs started today - stale ones get discarded */
   if (state.calib && (state.calib.date !== todayISO || state.calib.phase === "done" || state.calib.viewOnly)) {
     state.calib = null;
@@ -602,6 +606,7 @@ function saveHistory(nextArr) {
 function logCompletion(day, type) {
   var record = { date: localISO(new Date()), day: day, type: type, at: new Date().toISOString() };
   saveHistory(state.history.concat([record]));
+  queueLockdSync(type);
 }
 function recordExerciseHistory(day, cutoffIdx) {
   var passed = state.queue.slice(0, cutoffIdx);
@@ -942,6 +947,85 @@ function exitSession() {
 function returnFromComplete() { state.view = "overview"; Storage.set("active-session", ""); render(); }
 
 /* ============================================================
+   LAPTOP SYNC (lockd)
+   The console records a PENDING sync on completion (popup blockers
+   forbid auto-opening a window), then the user taps SYNC to open the
+   daemon popup, which postMessages the result back to this window.
+   ============================================================ */
+var laptopSync = { url: "", token: "" };
+var PENDING_SYNC = null;
+var SYNC_WAITING = false;
+var SYNC_STATUS = "";
+
+(function loadLaptopSync(){
+  var raw = Storage.get("laptop-sync");
+  if (!raw) return;
+  try {
+    var cfg = JSON.parse(raw);
+    if (cfg && typeof cfg === "object") {
+      laptopSync = { url: cfg.url || "", token: cfg.token || "" };
+    }
+  } catch (e) {}
+})();
+
+function lockdConfigured() {
+  return !!(laptopSync.url && laptopSync.token);
+}
+
+function saveLockdConfig() {
+  try { Storage.set("laptop-sync", JSON.stringify(laptopSync)); } catch (e) {}
+}
+
+function queueLockdSync(type) {
+  if (!lockdConfigured()) return;
+  PENDING_SYNC = { date: localISO(new Date()), type: type, at: new Date().toISOString() };
+  try { Storage.set("lockd-pending-sync", JSON.stringify(PENDING_SYNC)); } catch (e) {}
+}
+
+function clearPendingLockdSync() {
+  PENDING_SYNC = null;
+  try { Storage.set("lockd-pending-sync", ""); } catch (e) {}
+}
+
+function lockdStatusText() {
+  if (SYNC_STATUS) return SYNC_STATUS;
+  if (PENDING_SYNC) return "Pending: " + PENDING_SYNC.date + " - tap SYNC";
+  if (!lockdConfigured()) return "Not configured";
+  return "In sync";
+}
+
+function syncToLaptop() {
+  if (!lockdConfigured()) { SYNC_STATUS = "Not configured - set the laptop URL and token in the panel below."; render(); return; }
+  var d = PENDING_SYNC || { date: localISO(new Date()), type: "workout" };
+  var url = laptopSync.url.replace(/\/$/, "") +
+            "/sync?date=" + encodeURIComponent(d.date) +
+            "&type=" + encodeURIComponent(d.type) +
+            "&token=" + encodeURIComponent(laptopSync.token);
+  SYNC_WAITING = true;
+  SYNC_STATUS = "Waiting...";
+  var win = window.open(url, "lockdSync", "width=420,height=240");
+  if (!win) {
+    SYNC_WAITING = false;
+    SYNC_STATUS = "Popup blocked - tap SYNC to retry.";
+  }
+  render();
+}
+
+window.addEventListener("message", function (ev) {
+  var d = ev.data;
+  if (!d || d.source !== "lockd") return;
+  if (d.status === "ok") {
+    clearPendingLockdSync();
+    SYNC_WAITING = false;
+    SYNC_STATUS = "Logged " + d.date + " (" + d.type + ")";
+  } else {
+    SYNC_WAITING = false;
+    SYNC_STATUS = "Laptop said: " + d.status + " - tap SYNC to retry";
+  }
+  render();
+});
+
+/* ============================================================
    SESSION PERSISTENCE (survives tab close / browser restart)
    ============================================================ */
 function saveSessionState() {
@@ -1159,6 +1243,7 @@ function exportData() {
     exerciseSuggestions: state.exerciseSuggestions,
     calibrationLog: state.calibrationLog,
     planCalibration: state.planCalibration,
+    laptopSync: laptopSync,
     exportedAt: new Date().toISOString()
   }, null, 2);
   var blob = new Blob([payload], { type: "application/json" });
@@ -1192,6 +1277,7 @@ function handleImportFile(e) {
       if (data.exerciseSuggestions) { state.exerciseSuggestions = data.exerciseSuggestions; Storage.set("exercise-suggestions", JSON.stringify(data.exerciseSuggestions)); }
       if (Array.isArray(data.calibrationLog)) { state.calibrationLog = data.calibrationLog; Storage.set("calibration-log", JSON.stringify(data.calibrationLog)); }
       if (data.planCalibration && typeof data.planCalibration === "object") { state.planCalibration = data.planCalibration; Storage.set("plan-calibration", JSON.stringify(state.planCalibration)); }
+      if (data.laptopSync && typeof data.laptopSync === "object") { laptopSync = { url: data.laptopSync.url || "", token: data.laptopSync.token || "" }; saveLockdConfig(); }
       state.boulderLoggedToday = state.history.some(function(r){ return r.date === todayISO && r.type === "boulder"; });
       render();
       alert("Import complete.");

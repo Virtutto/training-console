@@ -483,6 +483,7 @@ function icoDownload(c){ return '<svg width="14" height="14" viewBox="0 0 24 24"
 function icoUpload(c){ return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'; }
 function icoSmile(c){ return '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>'; }
 function icoNeutral(c){ return '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="8" y1="15" x2="16" y2="15"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>'; }
+function icoGrimace(c){ return '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M7.5 9.5l2 1.2"/><path d="M16.5 9.5l-2 1.2"/><polyline points="8 15 10 13.8 12 15 14 13.8 16 15"/></svg>'; }
 function icoFrown(c){ return '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M16 16s-1.5-2-4-2-4 2-4 2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>'; }
 function icoNote(c){ return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>'; }
 function icoBookOpen(c){ return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>'; }
@@ -681,6 +682,24 @@ function toggleCooldownSkip() {
 }
 
 /* ============================================================
+   DIFFICULTY SCALE
+   Four values, hardest to easiest: easy | normal | hard | failed.
+   NORMAL is the honest middle: no rest change, no rep change.
+   ============================================================ */
+function difficultyColor(d) {
+  if (d === "easy") return "#7fd88a";
+  if (d === "normal") return "#8fd6ff";
+  if (d === "hard") return "#ffd60a";
+  return "#ff7b86";
+}
+function difficultyScore(d) {
+  if (d === "easy") return 1;
+  if (d === "normal") return 0.75;
+  if (d === "hard") return 0.5;
+  return 0;
+}
+
+/* ============================================================
    PR TRACKER
    ============================================================ */
 function getPR(exerciseName) {
@@ -735,6 +754,7 @@ function calculateAdaptiveRest(baseRest, difficulty, exerciseName) {
   if (difficulty === "easy") adj -= 15;
   else if (difficulty === "hard") adj += 15;
   else if (difficulty === "failed") adj += 30;
+  /* normal: hold the current adjustment - it is the neutral baseline */
   /* Clamp: rest can't go below 15s or above base+60s */
   adj = Math.max(adj, -(baseRest - 15));
   adj = Math.min(adj, 60);
@@ -833,6 +853,7 @@ function computeSuggestion(cur, difficulty, actualReps, actualDuration) {
     } else if (difficulty === "failed") {
       suggestion.suggestedReps = Math.max(1, baseReps - 2);
     } else {
+      /* normal + hard: hold the target */
       suggestion.suggestedReps = baseReps;
     }
   } else if (cur.type === "time") {
@@ -842,6 +863,7 @@ function computeSuggestion(cur, difficulty, actualReps, actualDuration) {
     } else if (difficulty === "failed") {
       suggestion.suggestedDuration = Math.max(5, baseDur - 5);
     } else {
+      /* normal + hard: hold the target */
       suggestion.suggestedDuration = baseDur;
     }
   }
@@ -2312,7 +2334,7 @@ function renderActive() {
   if (state.phase === "logSet") {
     var prev = lastSetLog(cur.name);
     if (prev) {
-      var diffColor = prev.difficulty==="easy"?"#7fd88a":prev.difficulty==="hard"?"#ffd60a":"#ff7b86";
+      var diffColor = difficultyColor(prev.difficulty);
       html += '<div class="panel" style="width:100%;margin-top:16px;border-left:3px solid '+diffColor+';">'+
         '<div class="dim" style="font-size:9px;letter-spacing:2px;margin-bottom:4px;">LAST SET . '+prev.date+'</div>'+
         '<div style="font-size:13px;color:#dff3fb;">'+
@@ -2332,10 +2354,11 @@ function renderActive() {
         '<input type="number" id="actualDurationInput" min="0" max="'+(cur.duration+10)+'" style="margin-bottom:14px;" placeholder="e.g. '+cur.duration+'" value="'+sugDur+'" />';
     }
     html += '<label class="fieldlabel">HOW DID IT FEEL?</label>';
-    html += '<div style="display:flex;gap:10px;">'+
-      '<button class="ctrlbtn" onclick="recordSetLog(\'easy\')" style="flex-direction:column;gap:4px;">'+icoSmile("#7fd88a")+'<span>EASY</span></button>'+
-      '<button class="ctrlbtn" onclick="recordSetLog(\'hard\')" style="flex-direction:column;gap:4px;">'+icoNeutral("#ffd60a")+'<span>HARD</span></button>'+
-      '<button class="ctrlbtn" onclick="recordSetLog(\'failed\')" style="flex-direction:column;gap:4px;">'+icoFrown("#ff7b86")+'<span>FAILED</span></button>'+
+    html += '<div style="display:flex;gap:8px;">'+
+      '<button class="ctrlbtn" onclick="recordSetLog(\'easy\')" style="flex-direction:column;gap:4px;padding:12px 4px;">'+icoSmile(difficultyColor("easy"))+'<span>EASY</span></button>'+
+      '<button class="ctrlbtn" onclick="recordSetLog(\'normal\')" style="flex-direction:column;gap:4px;padding:12px 4px;">'+icoNeutral(difficultyColor("normal"))+'<span>NORMAL</span></button>'+
+      '<button class="ctrlbtn" onclick="recordSetLog(\'hard\')" style="flex-direction:column;gap:4px;padding:12px 4px;">'+icoGrimace(difficultyColor("hard"))+'<span>HARD</span></button>'+
+      '<button class="ctrlbtn" onclick="recordSetLog(\'failed\')" style="flex-direction:column;gap:4px;padding:12px 4px;">'+icoFrown(difficultyColor("failed"))+'<span>FAILED</span></button>'+
     '</div></div>';
   }
 
@@ -2372,13 +2395,22 @@ function renderComplete() {
 
   var log = state.sessionLog || [];
   var totalSets = log.length;
-  var easy = 0, hard = 0, failed = 0;
+  var easy = 0, normal = 0, hard = 0, failed = 0;
   log.forEach(function(e){
     if (e.difficulty === "easy") easy++;
+    else if (e.difficulty === "normal") normal++;
     else if (e.difficulty === "hard") hard++;
     else failed++;
   });
-  var avgDiff = totalSets > 0 ? (easy >= hard && easy >= failed ? "EASY" : failed >= hard ? "FAILED" : "HARD") : "N/A";
+  /* AVG DIFFICULTY = the most common rating this session.
+     Ties resolve to the more favourable rating (as they always did). */
+  var avgDiff = "N/A";
+  if (totalSets > 0) {
+    var ratings = [["EASY", easy], ["NORMAL", normal], ["HARD", hard], ["FAILED", failed]];
+    var best = ratings[0];
+    ratings.forEach(function(r){ if (r[1] > best[1]) best = r; });
+    avgDiff = best[0];
+  }
 
   var html = '<div class="wrap" style="margin-top:40px;text-align:center;">';
   html += icoFlame(t.accent);
@@ -2392,9 +2424,10 @@ function renderComplete() {
   html += '<div class="statgrid" style="grid-template-columns:1fr 1fr;">';
   html += '<div class="statbox"><div class="statval" style="font-size:20px;">'+timeStr+'</div><div class="statlabel dim">DURATION</div></div>';
   html += '<div class="statbox"><div class="statval" style="font-size:20px;">'+totalSets+'</div><div class="statlabel dim">SETS LOGGED</div></div>';
-  html += '<div class="statbox"><div class="statval" style="font-size:20px;color:#7fd88a;">'+easy+'</div><div class="statlabel dim">EASY</div></div>';
-  html += '<div class="statbox"><div class="statval" style="font-size:20px;color:#ffd60a;">'+hard+'</div><div class="statlabel dim">HARD</div></div>';
-  html += '<div class="statbox"><div class="statval" style="font-size:20px;color:#ff7b86;">'+failed+'</div><div class="statlabel dim">FAILED</div></div>';
+  html += '<div class="statbox"><div class="statval" style="font-size:20px;color:'+difficultyColor("easy")+';">'+easy+'</div><div class="statlabel dim">EASY</div></div>';
+  html += '<div class="statbox"><div class="statval" style="font-size:20px;color:'+difficultyColor("normal")+';">'+normal+'</div><div class="statlabel dim">NORMAL</div></div>';
+  html += '<div class="statbox"><div class="statval" style="font-size:20px;color:'+difficultyColor("hard")+';">'+hard+'</div><div class="statlabel dim">HARD</div></div>';
+  html += '<div class="statbox"><div class="statval" style="font-size:20px;color:'+difficultyColor("failed")+';">'+failed+'</div><div class="statlabel dim">FAILED</div></div>';
   html += '<div class="statbox"><div class="statval" style="font-size:20px;">'+avgDiff+'</div><div class="statlabel dim">AVG DIFFICULTY</div></div>';
   html += '</div>';
 
@@ -2420,7 +2453,7 @@ function renderComplete() {
   if (log.length > 0) {
     html += '<div class="dim" style="font-size:9px;letter-spacing:1px;margin-top:14px;margin-bottom:8px;">SET BREAKDOWN</div>';
     log.forEach(function(e){
-      var diffColor = e.difficulty==="easy"?"#7fd88a":e.difficulty==="hard"?"#ffd60a":"#ff7b86";
+      var diffColor = difficultyColor(e.difficulty);
       html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:11px;">'+
         '<span style="color:#cde3ec;">'+e.exercise+' - SET '+e.setIndex+'</span>'+
         '<span style="color:'+diffColor+';">'+(e.actualReps != null ? e.actualReps+' reps - ':e.section+' - ')+e.difficulty.toUpperCase()+'</span>'+
@@ -2505,7 +2538,7 @@ function renderStats() {
         var dayBoulder = boulderLogsForDate(iso);
         var dayTotal = daySessions.length + dayBoulder.length;
         if (dayTotal > 0) {
-          var dayDifficulty = daySessions.reduce(function(sum, e){ return sum + (e.difficulty === "easy" ? 1 : e.difficulty === "hard" ? 0.5 : 0); }, 0);
+          var dayDifficulty = daySessions.reduce(function(sum, e){ return sum + difficultyScore(e.difficulty); }, 0);
           pct = Math.min(100, Math.round((dayDifficulty / daySessions.length) * 100)) || (dayTotal > 0 ? 50 : 0);
         }
       }

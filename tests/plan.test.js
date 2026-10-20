@@ -965,6 +965,26 @@ ok("index.html is ASCII-only (non-BOM)", offenders.length === 0, offenders.lengt
      /d\.status === "stale"[\s\S]{0,120}clearPendingLockdSync\(/.test(src));
   ok("no window opened when nothing is pending",
      /if \(!PENDING_SYNC\)[\s\S]{0,120}return;/.test(src));
+
+  /* --- 9b. Task 8: SYNC button + LAPTOP SYNC panel -------------------
+     Slices keep these non-vacuous: "syncToLaptop" already exists as a
+     function definition and "LAPTOP SYNC" already appears in the engine
+     comment block - both must show up in the RIGHT render function. */
+  const renderCompleteSrc = src.slice(src.indexOf("function renderComplete"), src.indexOf("function renderStats"));
+  const renderOverviewSrc = src.slice(src.indexOf("function renderOverview"), src.indexOf("function renderComplete"));
+  const saveCfgSrc = src.slice(src.indexOf("function saveLockdConfig"), src.indexOf("function queueLockdSync"));
+  ok("completion screen renders SYNC TO LAPTOP button", src.includes("SYNC TO LAPTOP"));
+  ok("SYNC button appears before RETURN in renderComplete",
+     (() => {
+       const a = renderCompleteSrc.indexOf('onclick="syncToLaptop()"');
+       const b = renderCompleteSrc.indexOf("returnFromComplete()");
+       return a > 0 && b > 0 && a < b;
+     })());
+  ok("overview renders LAPTOP SYNC panel", renderOverviewSrc.includes("LAPTOP SYNC"));
+  ok("panel saves url and token",
+     renderOverviewSrc.includes("saveLaptopSyncPanel()") &&
+     /Storage\.set\("laptop-sync"/.test(saveCfgSrc));
+  ok("panel has url input", /type\s*=\s*"url"/.test(renderOverviewSrc));
 }
 
 /* --- summary ------------------------------------------------------- */

@@ -129,12 +129,6 @@ function dispatchMessage(app, data) {
   app.messageListeners.forEach(fn => fn(ev));
 }
 
-const TODAY = (function () {
-  const d = new Date();
-  const pad = n => String(n).padStart(2, "0");
-  return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
-})();
-
 /* ============================================================
    (a) BLOCKER regression: a seeded pending sync survives boot
    ============================================================ */
@@ -179,7 +173,7 @@ const TODAY = (function () {
   const u = app.openCalls.length ? app.openCalls[0].url : "";
   ok("popup url carries date=", /[?&]date=2026-10-19/.test(u), u.replace(/token=[^&]*/, "token=<redacted>"));
   ok("popup url carries type=boulder", /[?&]type=boulder/.test(u), u.replace(/token=[^&]*/, "token=<redacted>"));
-  ok("popup url carries token=", /[?&]token=/.test(u), "<url redacted>");
+  ok("popup url carries token=", /[?&]token=sekret/.test(u), "<url redacted>");
   ok("popup target name is lockdSync", app.openCalls.length && app.openCalls[0].name === "lockdSync");
   ok("status shows Waiting...", app.ctx.lockdStatusText() === "Waiting...", app.ctx.lockdStatusText());
 
@@ -274,6 +268,60 @@ function appWithPending(status, msgDate) {
   ok("missing token -> not configured", configured({ url: "http://192.168.1.10:8787", token: "" }) === false);
   ok("proper http url + token -> configured", configured({ url: "http://192.168.1.10:8787", token: "sekret" }) === true);
   ok("https url + token -> configured", configured({ url: "https://host:8787", token: "sekret" }) === true);
+}
+
+/* ============================================================
+   (f) task 8: queueing resets a stale status, sets + persists pending
+   ============================================================ */
+{
+  const app = loadApp({
+    "laptop-sync": JSON.stringify({ url: "http://192.168.1.10:8787", token: "sekret" })
+  });
+  /* a stale "nothing to sync" from an earlier tap must not survive a
+     fresh workout being queued (review Minor 1 - sticky status) */
+  app.ctx.SYNC_STATUS = "Nothing to sync - log a session first.";
+  app.ctx.queueLockdSync("workout");
+  const d = new Date();
+  const pad = n => String(n).padStart(2, "0");
+  const today = d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+  ok("queueing clears a stale SYNC_STATUS",
+     app.ctx.lockdStatusText() === "Pending: " + today + " - tap SYNC",
+     app.ctx.lockdStatusText());
+  ok("queueing sets PENDING_SYNC",
+     app.ctx.PENDING_SYNC && app.ctx.PENDING_SYNC.date === today && app.ctx.PENDING_SYNC.type === "workout",
+     JSON.stringify(app.ctx.PENDING_SYNC));
+  ok("queueing persists lockd-pending-sync",
+     (function () {
+       const raw = app.store["lockd-pending-sync"];
+       if (!raw) return false;
+       const p = JSON.parse(raw);
+       return p.date === today && p.type === "workout";
+     })(),
+     String(app.store["lockd-pending-sync"]));
+}
+
+/* ============================================================
+   (g) task 8: panel save path reads inputs -> laptopSync + storage
+   ============================================================ */
+{
+  const app = loadApp({});
+  app.ctx.document.getElementById("lockdUrlInput").value = "http://192.168.1.10:8787";
+  app.ctx.document.getElementById("lockdTokenInput").value = "  sekret ";
+  if (typeof app.ctx.saveLaptopSyncPanel === "function") app.ctx.saveLaptopSyncPanel();
+  ok("panel save updates laptopSync (trimmed)",
+     app.ctx.laptopSync && app.ctx.laptopSync.url === "http://192.168.1.10:8787" && app.ctx.laptopSync.token === "sekret",
+     JSON.stringify(app.ctx.laptopSync));
+  ok("panel save persists laptop-sync",
+     (function () {
+       const raw = app.store["laptop-sync"];
+       if (!raw) return false;
+       const cfg = JSON.parse(raw);
+       return cfg.url === "http://192.168.1.10:8787" && cfg.token === "sekret";
+     })(),
+     String(app.store["laptop-sync"]));
+  ok("panel save clears status and the app is configured",
+     app.ctx.SYNC_STATUS === "" && app.ctx.SYNC_WAITING === false && app.ctx.lockdConfigured() === true,
+     "status=" + app.ctx.SYNC_STATUS + " configured=" + app.ctx.lockdConfigured());
 }
 
 /* --- summary ------------------------------------------------------- */

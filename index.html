@@ -983,6 +983,9 @@ function saveLockdConfig() {
 
 function queueLockdSync(type) {
   if (!lockdConfigured()) return;
+  /* A stale status from an earlier tap must not outlive a fresh queue. */
+  SYNC_STATUS = "";
+  SYNC_WAITING = false;
   PENDING_SYNC = { date: localISO(new Date()), type: type, at: new Date().toISOString() };
   try { Storage.set("lockd-pending-sync", JSON.stringify(PENDING_SYNC)); } catch (e) {}
 }
@@ -1014,6 +1017,17 @@ function syncToLaptop() {
     SYNC_WAITING = false;
     SYNC_STATUS = "Popup blocked - tap SYNC to retry.";
   }
+  render();
+}
+
+function saveLaptopSyncPanel() {
+  var urlEl = document.getElementById("lockdUrlInput");
+  var tokenEl = document.getElementById("lockdTokenInput");
+  laptopSync.url = urlEl ? urlEl.value.trim() : "";
+  laptopSync.token = tokenEl ? tokenEl.value.trim() : "";
+  saveLockdConfig();
+  SYNC_STATUS = "";
+  SYNC_WAITING = false;
   render();
 }
 
@@ -2307,6 +2321,18 @@ function renderOverview() {
 
   html += renderCalibEntry(t);
 
+  /* LAPTOP SYNC (lockd) - config surface; the SYNC button also sits on
+     the completion screen. Mirrors the export/import row idiom. */
+  html += '<div class="panel" style="margin-bottom:16px;">'+
+    '<div class="dim" style="font-size:10px;letter-spacing:2px;margin-bottom:8px;">LAPTOP SYNC</div>'+
+    '<div class="dim" style="font-size:11px;margin-bottom:10px;">'+lockdStatusText()+'</div>'+
+    '<button class="smallbtn" onclick="syncToLaptop()" style="margin-bottom:14px;">SYNC TO LAPTOP</button>'+
+    '<div style="margin-bottom:12px;"><label class="fieldlabel">LAPTOP URL</label><input type="url" id="lockdUrlInput" value="'+(laptopSync.url || "")+'" placeholder="http://192.168.x.x:8787" /></div>'+
+    '<div style="margin-bottom:12px;"><label class="fieldlabel">TOKEN</label><input type="password" id="lockdTokenInput" value="'+(laptopSync.token || "")+'" placeholder="from lockd-config.json on the laptop" /></div>'+
+    '<div class="dim" style="font-size:9px;margin-bottom:12px;">URL = the laptop LAN IP, port 8787. Token = from lockd-config.json on the laptop.</div>'+
+    '<button class="smallbtn" onclick="saveLaptopSyncPanel()" style="background:'+t.accent+';color:#02080a;">SAVE</button>'+
+  '</div>';
+
   html += '</div>';
   if (state.editModal) html += renderEditModal();
   return html;
@@ -2561,6 +2587,10 @@ function renderComplete() {
 
   html += '</div>';
 
+  html += '<div style="margin-top:18px;">'+
+    '<button class="hdr" onclick="syncToLaptop()" style="padding:14px 28px;border-radius:12px;background:rgba(255,255,255,0.06);color:'+t.accent+';font-size:13px;">SYNC TO LAPTOP</button>'+
+    '<div class="dim" style="font-size:10px;margin-top:8px;">'+lockdStatusText()+'</div>'+
+  '</div>';
   html += '<button class="hdr" onclick="returnFromComplete()" style="margin-top:24px;padding:14px 28px;border-radius:12px;background:'+t.accent+';color:#02080a;font-size:13px;">RETURN</button>';
   html += '</div>';
   return html;

@@ -451,6 +451,135 @@ const CFG = { "laptop-sync": JSON.stringify({ url: "http://192.168.1.10:8787", t
      okHtml.indexOf(app.ctx.todayISO) > -1, "no date on the completion screen");
 }
 
+/* ============================================================
+   (i) the 2-second in-app toast when a sync resolves
+   ============================================================ */
+/* Adam: "an in app pop up for like 2 seconds when the autosync happens".
+   The popup window is the daemon's page; this is the console's own
+   receipt, so it must live in the app and clear itself. */
+{
+  const app = appWithPending("ok");
+  const toast = app.ctx.state.syncToast;
+  ok("a successful sync raises an in-app toast", !!toast, JSON.stringify(toast));
+  ok("the toast leads with GAMES UNLOCKED", toast && toast.headline === "GAMES UNLOCKED",
+     toast ? toast.headline : "no toast");
+  ok("the toast is rendered into the app",
+     app.ctx.document.getElementById("app").innerHTML.indexOf("sync-toast") > -1,
+     "no .sync-toast in the rendered app");
+  ok("the toast names the synced date",
+     toast && toast.detail.indexOf("2026-10-19") > -1,
+     toast ? toast.detail : "no toast");
+
+  const toastTimers = app.timers.filter(t => t.ms === 2000 && !t.cleared);
+  ok("the toast is armed to clear after 2 seconds", toastTimers.length === 1,
+     "timers=" + app.timers.map(t => t.ms).join(","));
+  if (toastTimers.length) toastTimers[0].fn();
+  ok("after 2 seconds the toast is gone", app.ctx.state.syncToast === null,
+     JSON.stringify(app.ctx.state.syncToast));
+  ok("after 2 seconds the app no longer renders the toast",
+     app.ctx.document.getElementById("app").innerHTML.indexOf("sync-toast") === -1,
+     ".sync-toast still rendered");
+}
+
+{
+  const app = appWithPending("denied");
+  const toast = app.ctx.state.syncToast;
+  ok("a failed sync raises a SYNC FAILED toast", toast && toast.headline === "SYNC FAILED",
+     toast ? toast.headline : "no toast");
+  ok("the failed toast says why", toast && /denied/i.test(toast.detail),
+     toast ? toast.detail : "no toast");
+}
+
+{
+  const app = loadApp(Object.assign({}, CFG));
+  ok("no toast on boot", app.ctx.state.syncToast == null, JSON.stringify(app.ctx.state.syncToast));
+}
+
+{
+  /* the no-reply timeout is a failure too - it must raise the toast */
+  const app = loadApp(Object.assign({}, CFG));
+  app.ctx.logCompletion("MON", "workout");
+  app.timers.forEach(t => { if (!t.cleared) t.fn(); });
+  const toast = app.ctx.state.syncToast;
+  ok("a no-reply timeout raises a SYNC FAILED toast", toast && toast.headline === "SYNC FAILED",
+     toast ? toast.headline : "no toast");
+}
+
+/* ============================================================
+   (j) the status line must be evidence-based, not config-guesswork
+   Adam: "It sometimes says not connected while it clearly is cuz it works"
+   ============================================================ */
+{
+  const app = loadApp({ "laptop-sync": JSON.stringify({ url: "http://192.168.1.10:8787", token: "sekret" }) });
+  ok("configured + never synced -> In sync", app.ctx.lockdStatusText() === "In sync", app.ctx.lockdStatusText());
+  ok("configured + never synced -> IN SYNC headline", app.ctx.lockdSyncHeadline() === "IN SYNC", app.ctx.lockdSyncHeadline());
+}
+
+{
+  const app = appWithPending("ok");
+  ok("a successful sync is recorded", !!app.store["lockd-last-sync"], String(app.store["lockd-last-sync"]));
+  const reloaded = loadApp(app.store);
+  ok("after a reload the status still proves the connection",
+     /^Connected - last sync 2026-10-19/.test(reloaded.ctx.lockdStatusText()),
+     reloaded.ctx.lockdStatusText());
+  ok("after a reload the headline is IN SYNC, not NOT SET UP",
+     reloaded.ctx.lockdSyncHeadline() === "IN SYNC", reloaded.ctx.lockdSyncHeadline());
+}
+
+{
+  /* config lost but a successful sync on record: never claim "not set up" */
+  const app = loadApp({ "lockd-last-sync": JSON.stringify({ date: "2026-10-19", type: "workout", at: "2026-10-19T18:04:00.000Z" }) });
+  ok("lost config + sync history -> CONFIG MISSING headline",
+     app.ctx.lockdSyncHeadline() === "SYNC CONFIG MISSING", app.ctx.lockdSyncHeadline());
+  ok("lost config + sync history -> status names the last sync",
+     /^Config missing - last sync 2026-10-19/.test(app.ctx.lockdStatusText()), app.ctx.lockdStatusText());
+  ok("lost config + sync history -> never says NOT SET UP",
+     app.ctx.lockdSyncHeadline().indexOf("NOT SET UP") === -1, app.ctx.lockdSyncHeadline());
+}
+
+{
+  const app = loadApp({});
+  ok("no config + no history -> Not configured", app.ctx.lockdStatusText() === "Not configured", app.ctx.lockdStatusText());
+  ok("no config + no history -> NOT SET UP headline",
+     app.ctx.lockdSyncHeadline() === "LAPTOP SYNC NOT SET UP", app.ctx.lockdSyncHeadline());
+}
+
+/* ============================================================
+   (k) saving must never blank a working config
+   ============================================================ */
+{
+  const app = loadApp({ "laptop-sync": JSON.stringify({ url: "http://192.168.1.10:8787", token: "sekret" }) });
+  app.ctx.saveLaptopSyncPanel();   /* fields not on screen -> empty values */
+  ok("saving with empty fields keeps the URL", app.ctx.laptopSync.url === "http://192.168.1.10:8787", app.ctx.laptopSync.url);
+  ok("saving with empty fields keeps the token", app.ctx.laptopSync.token === "sekret", "token blanked");
+  ok("saving with empty fields keeps the stored config",
+     JSON.parse(app.store["laptop-sync"]).url === "http://192.168.1.10:8787", app.store["laptop-sync"]);
+}
+
+{
+  const app = loadApp({});
+  app.ctx.document.getElementById("lockdUrlInput").value = "192.168.1.10:8787";
+  app.ctx.document.getElementById("lockdTokenInput").value = " sekret ";
+  app.ctx.saveLaptopSyncPanel();
+  ok("a scheme-less URL is saved as http://", app.ctx.laptopSync.url === "http://192.168.1.10:8787", app.ctx.laptopSync.url);
+  ok("a saved scheme-less URL counts as configured", app.ctx.lockdConfigured() === true);
+  ok("the token is trimmed on save", app.ctx.laptopSync.token === "sekret", app.ctx.laptopSync.token);
+}
+
+/* ============================================================
+   (l) the setup form lives in DIAGNOSTICS, not on the main page
+   ============================================================ */
+{
+  const app = loadApp({ "laptop-sync": JSON.stringify({ url: "http://192.168.1.10:8787", token: "sekret" }) });
+  const overview = app.ctx.renderOverview();
+  ok("the main page has no laptop setup form", overview.indexOf("lockdUrlInput") === -1, "form still on the overview");
+  ok("the main page has no LAPTOP SYNC panel", overview.indexOf("LAPTOP SYNC") === -1, "panel still on the overview");
+  const stats = app.ctx.renderStats();
+  ok("DIAGNOSTICS carries the laptop setup form", stats.indexOf("lockdUrlInput") > -1, "form missing from DIAGNOSTICS");
+  ok("DIAGNOSTICS carries the auto-sync toggle", stats.indexOf("AUTO-SYNC AFTER WORKOUT") > -1);
+  ok("DIAGNOSTICS carries the manual sync button", stats.indexOf("SYNC TO LAPTOP") > -1);
+}
+
 /* --- summary ------------------------------------------------------- */
 console.log("\n" + pass + " passed, " + failures.length + " failed");
 if (failures.length) {

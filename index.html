@@ -40,6 +40,18 @@
   .ctrlbtn { flex: 1; padding: 14px; border-radius: 12px; background: rgba(12,22,32,0.55); border: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; }
   .smallbtn { padding: 10px 12px; border-radius: 10px; background: rgba(12,22,32,0.55); border: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11px; }
   .theme-menu, .day-menu { position: absolute; background: #0a1520; border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; z-index: 20; overflow: hidden; }
+  .sync-toast {
+    position: fixed; left: 50%; top: 16px; transform: translateX(-50%);
+    z-index: 60; min-width: 210px; max-width: 90vw;
+    background: rgba(8,16,24,0.97); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px; padding: 12px 16px; text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.55); pointer-events: none;
+    animation: syncToastIn 0.18s ease-out;
+  }
+  @keyframes syncToastIn {
+    from { opacity: 0; transform: translate(-50%, -10px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+  }
   .theme-opt, .day-opt { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border-radius: 6px; font-size: 11px; text-align: left; }
   .day-opt { padding: 10px 14px; font-size: 12px; }
   .statgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
@@ -549,6 +561,7 @@ var state = {
   warmupSkip: false,
   sessionLog: [],
   sessionStartTime: null,
+  syncToast: null,
   statsTab: "monthly",
   statsMonthOffset: 0,
   personalRecords: {},
@@ -577,6 +590,10 @@ var SYNC_STATUS = "";
 /* SYNC_STATE drives the headline: idle | syncing | ok | error */
 var SYNC_STATE = "idle";
 var SYNC_TIMER = null;
+/* The 2-second in-app receipt shown when a sync resolves. */
+var SYNC_TOAST_TIMER = null;
+/* The last sync that actually landed - the status line's evidence. */
+var LOCKD_LAST_SYNC = null;
 /* Auto-sync after a workout: on by default, the user can switch it off. */
 var AUTO_SYNC = true;
 
@@ -1011,13 +1028,21 @@ function returnFromComplete() {
    ============================================================ */
 (function loadLaptopSync(){
   var raw = Storage.get("laptop-sync");
-  if (!raw) return;
-  try {
-    var cfg = JSON.parse(raw);
-    if (cfg && typeof cfg === "object") {
-      laptopSync = { url: cfg.url || "", token: cfg.token || "" };
-    }
-  } catch (e) {}
+  if (raw) {
+    try {
+      var cfg = JSON.parse(raw);
+      if (cfg && typeof cfg === "object") {
+        laptopSync = { url: cfg.url || "", token: cfg.token || "" };
+      }
+    } catch (e) {}
+  }
+  var rawLast = Storage.get("lockd-last-sync");
+  if (rawLast) {
+    try {
+      var last = JSON.parse(rawLast);
+      if (last && typeof last === "object" && last.date) LOCKD_LAST_SYNC = last;
+    } catch (e) {}
+  }
 })();
 
 function lockdConfigured() {
@@ -1059,12 +1084,35 @@ function clearPendingLockdSync() {
   try { Storage.set("lockd-pending-sync", ""); } catch (e) {}
 }
 
+/* A scheme-less URL would fail lockdConfigured() forever, so make the
+   scheme explicit on save. */
+function normaliseLockdUrl(raw) {
+  var u = (raw || "").trim();
+  if (!u) return "";
+  if (!/^https?:\/\//i.test(u)) u = "http://" + u;
+  return u.replace(/\/+$/, "");
+}
+
+function lockdLastSyncLabel() {
+  if (!LOCKD_LAST_SYNC) return "";
+  var label = LOCKD_LAST_SYNC.date;
+  var at = LOCKD_LAST_SYNC.at ? new Date(LOCKD_LAST_SYNC.at) : null;
+  if (at && !isNaN(at.getTime())) {
+    label += " " + ("0" + at.getHours()).slice(-2) + ":" + ("0" + at.getMinutes()).slice(-2);
+  }
+  return label;
+}
+
 function lockdStatusText() {
   if (SYNC_STATUS) return SYNC_STATUS;
   if (PENDING_SYNC) return "Pending: " + PENDING_SYNC.date + " - tap SYNC";
-  if (!lockdConfigured()) return "Not configured";
-  if (!lockdAutoSyncEnabled()) return "Auto-sync off";
-  return "In sync";
+  if (lockdConfigured()) {
+    return LOCKD_LAST_SYNC ? "Connected - last sync " + lockdLastSyncLabel() : "In sync";
+  }
+  /* A sync that landed is proof the laptop is reachable - a missing config
+     must never be reported as "not connected". */
+  if (LOCKD_LAST_SYNC) return "Config missing - last sync " + lockdLastSyncLabel();
+  return "Not configured";
 }
 
 /* The headline the screens lead with - one word for where we are. */
@@ -1073,9 +1121,9 @@ function lockdSyncHeadline() {
   if (SYNC_STATE === "syncing") return "SYNCING TO LAPTOP";
   if (SYNC_STATE === "error") return "SYNC FAILED";
   if (PENDING_SYNC) return "READY TO SYNC";
-  if (!lockdConfigured()) return "LAPTOP SYNC NOT SET UP";
-  if (!lockdAutoSyncEnabled()) return "AUTO-SYNC OFF";
-  return "IN SYNC";
+  if (lockdConfigured()) return lockdAutoSyncEnabled() ? "IN SYNC" : "AUTO-SYNC OFF";
+  if (LOCKD_LAST_SYNC) return "SYNC CONFIG MISSING";
+  return "LAPTOP SYNC NOT SET UP";
 }
 
 function lockdSyncColour() {
@@ -1083,6 +1131,33 @@ function lockdSyncColour() {
   if (SYNC_STATE === "ok" || SYNC_STATE === "syncing") return t.accent;
   if (SYNC_STATE === "error") return "#ff7b86";
   return TEXT_DIM;
+}
+
+function clearSyncToast() {
+  if (SYNC_TOAST_TIMER) { clearTimeout(SYNC_TOAST_TIMER); SYNC_TOAST_TIMER = null; }
+  state.syncToast = null;
+}
+
+/* A brief in-app receipt (2s) when a sync resolves. The popup window is
+   the daemon's own page; this is the console's confirmation, so it lives
+   in the app and clears itself. */
+function showSyncToast(headline, detail, colour) {
+  clearSyncToast();
+  state.syncToast = { headline: headline, detail: detail, colour: colour };
+  SYNC_TOAST_TIMER = setTimeout(function () {
+    SYNC_TOAST_TIMER = null;
+    state.syncToast = null;
+    render();
+  }, 2000);
+}
+
+function renderSyncToast() {
+  var s = state.syncToast;
+  if (!s) return "";
+  return '<div class="sync-toast" style="border-left:3px solid '+s.colour+';">'+
+    '<div class="hdr" style="font-size:12px;letter-spacing:2px;color:'+s.colour+';">'+s.headline+'</div>'+
+    '<div class="dim" style="font-size:10px;margin-top:3px;">'+s.detail+'</div>'+
+  '</div>';
 }
 
 function lockdSyncUrl(d) {
@@ -1102,6 +1177,7 @@ function armLockdSyncTimeout() {
     SYNC_WAITING = false;
     SYNC_STATE = "error";
     SYNC_STATUS = "No reply from the laptop - tap SYNC to retry.";
+    showSyncToast("SYNC FAILED", "No reply from the laptop", lockdSyncColour());
     render();
   }, 12000);
 }
@@ -1119,6 +1195,7 @@ function openLockdSyncPopup() {
   }
   if (SYNC_WAITING) return false;
   var url = lockdSyncUrl(PENDING_SYNC);
+  clearSyncToast();
   SYNC_WAITING = true;
   SYNC_STATE = "syncing";
   SYNC_STATUS = "Syncing to laptop...";
@@ -1153,12 +1230,38 @@ function autoSyncToLaptop() {
 function saveLaptopSyncPanel() {
   var urlEl = document.getElementById("lockdUrlInput");
   var tokenEl = document.getElementById("lockdTokenInput");
-  laptopSync.url = urlEl ? urlEl.value.trim() : "";
-  laptopSync.token = tokenEl ? tokenEl.value.trim() : "";
+  /* An empty field means "leave it alone" - a save must never blank a
+     working config (that is how the panel used to claim "not configured"
+     while syncs were landing). */
+  var url = urlEl ? normaliseLockdUrl(urlEl.value) : "";
+  var token = tokenEl ? tokenEl.value.trim() : "";
+  if (url) laptopSync.url = url;
+  if (token) laptopSync.token = token;
   saveLockdConfig();
   SYNC_STATUS = "";
   SYNC_WAITING = false;
   render();
+}
+
+/* LAPTOP SYNC (lockd) - setup + status. Lives in DIAGNOSTICS: the URL and
+   token are configured once, and daily use is covered by the completion
+   screen and the 2-second sync toast. */
+function renderLaptopSyncPanel() {
+  var t = theme();
+  return '<div class="panel" style="margin-bottom:16px;">'+
+    '<div class="dim" style="font-size:10px;letter-spacing:2px;margin-bottom:8px;">LAPTOP SYNC</div>'+
+    '<div style="font-size:13px;letter-spacing:1px;color:'+lockdSyncColour()+';margin-bottom:6px;">'+lockdSyncHeadline()+'</div>'+
+    '<div class="dim" style="font-size:11px;margin-bottom:10px;">'+lockdStatusText()+'</div>'+
+    '<div class="row" style="margin-bottom:12px;"><div class="dim" style="font-size:10px;letter-spacing:1px;">AUTO-SYNC AFTER WORKOUT</div>'+
+      '<button onclick="toggleLockdAutoSync()" style="font-size:10px;letter-spacing:1px;color:'+(lockdAutoSyncEnabled()?t.accent:TEXT_DIM)+';display:flex;align-items:center;gap:5px;">'+
+      (lockdAutoSyncEnabled() ? icoCheck(t.accent) : '<span style="width:12px;height:12px;border-radius:3px;border:1px solid '+TEXT_DIM+';display:inline-block;"></span>')+
+      (lockdAutoSyncEnabled() ? "ON" : "OFF")+'</button></div>'+
+    '<button class="smallbtn" onclick="syncToLaptop()" style="margin-bottom:14px;">SYNC TO LAPTOP</button>'+
+    '<div style="margin-bottom:12px;"><label class="fieldlabel">LAPTOP URL</label><input type="url" id="lockdUrlInput" value="'+(laptopSync.url || "")+'" placeholder="http://192.168.x.x:8787" /></div>'+
+    '<div style="margin-bottom:12px;"><label class="fieldlabel">TOKEN</label><input type="password" id="lockdTokenInput" value="'+(laptopSync.token || "")+'" placeholder="from lockd-config.json on the laptop" /></div>'+
+    '<div class="dim" style="font-size:9px;margin-bottom:12px;">URL = the laptop LAN IP, port 8787. Token = from lockd-config.json on the laptop.</div>'+
+    '<button class="smallbtn" onclick="saveLaptopSyncPanel()" style="background:'+t.accent+';color:#02080a;">SAVE</button>'+
+  '</div>';
 }
 
 window.addEventListener("message", function (ev) {
@@ -1172,16 +1275,22 @@ window.addEventListener("message", function (ev) {
     clearPendingLockdSync();
     SYNC_STATE = "ok";
     SYNC_STATUS = "Logged " + d.date + " (" + d.type + ").";
+    LOCKD_LAST_SYNC = { date: d.date, type: d.type, at: new Date().toISOString() };
+    try { Storage.set("lockd-last-sync", JSON.stringify(LOCKD_LAST_SYNC)); } catch (e) {}
+    showSyncToast("GAMES UNLOCKED", "Synced " + d.date + " (" + d.type + ")", lockdSyncColour());
   } else if (d.status === "stale") {
     clearPendingLockdSync();
     SYNC_STATE = "error";
     SYNC_STATUS = "That date has expired - log today's session again.";
+    showSyncToast("SYNC FAILED", "That date has expired", lockdSyncColour());
   } else if (d.status === "denied") {
     SYNC_STATE = "error";
     SYNC_STATUS = "Laptop denied the sync - check the token and retry.";
+    showSyncToast("SYNC FAILED", "Laptop denied the sync - check the token", lockdSyncColour());
   } else {
     SYNC_STATE = "error";
     SYNC_STATUS = "Laptop said: " + d.status + " - tap SYNC to retry.";
+    showSyncToast("SYNC FAILED", "Laptop said: " + d.status, lockdSyncColour());
   }
   render();
 });
@@ -2469,23 +2578,6 @@ function renderOverview() {
 
   html += renderCalibEntry(t);
 
-  /* LAPTOP SYNC (lockd) - config surface; the SYNC button also sits on
-     the completion screen. Mirrors the export/import row idiom. */
-  html += '<div class="panel" style="margin-bottom:16px;">'+
-    '<div class="dim" style="font-size:10px;letter-spacing:2px;margin-bottom:8px;">LAPTOP SYNC</div>'+
-    '<div style="font-size:13px;letter-spacing:1px;color:'+lockdSyncColour()+';margin-bottom:6px;">'+lockdSyncHeadline()+'</div>'+
-    '<div class="dim" style="font-size:11px;margin-bottom:10px;">'+lockdStatusText()+'</div>'+
-    '<div class="row" style="margin-bottom:12px;"><div class="dim" style="font-size:10px;letter-spacing:1px;">AUTO-SYNC AFTER WORKOUT</div>'+
-      '<button onclick="toggleLockdAutoSync()" style="font-size:10px;letter-spacing:1px;color:'+(lockdAutoSyncEnabled()?t.accent:TEXT_DIM)+';display:flex;align-items:center;gap:5px;">'+
-      (lockdAutoSyncEnabled() ? icoCheck(t.accent) : '<span style="width:12px;height:12px;border-radius:3px;border:1px solid '+TEXT_DIM+';display:inline-block;"></span>')+
-      (lockdAutoSyncEnabled() ? "ON" : "OFF")+'</button></div>'+
-    '<button class="smallbtn" onclick="syncToLaptop()" style="margin-bottom:14px;">SYNC TO LAPTOP</button>'+
-    '<div style="margin-bottom:12px;"><label class="fieldlabel">LAPTOP URL</label><input type="url" id="lockdUrlInput" value="'+(laptopSync.url || "")+'" placeholder="http://192.168.x.x:8787" /></div>'+
-    '<div style="margin-bottom:12px;"><label class="fieldlabel">TOKEN</label><input type="password" id="lockdTokenInput" value="'+(laptopSync.token || "")+'" placeholder="from lockd-config.json on the laptop" /></div>'+
-    '<div class="dim" style="font-size:9px;margin-bottom:12px;">URL = the laptop LAN IP, port 8787. Token = from lockd-config.json on the laptop.</div>'+
-    '<button class="smallbtn" onclick="saveLaptopSyncPanel()" style="background:'+t.accent+';color:#02080a;">SAVE</button>'+
-  '</div>';
-
   html += '</div>';
   if (state.editModal) html += renderEditModal();
   return html;
@@ -3095,6 +3187,8 @@ function renderStats() {
     html += '</div>';
   }
 
+  html += renderLaptopSyncPanel();
+
   html += '<div style="display:flex;gap:10px;">'+
     '<button class="smallbtn" style="flex:1;" onclick="exportData()">'+icoDownload(TEXT_DIM)+' EXPORT DATA</button>'+
     '<button class="smallbtn" style="flex:1;" onclick="triggerImport()">'+icoUpload(TEXT_DIM)+' IMPORT DATA</button>'+
@@ -3113,6 +3207,7 @@ function render() {
   else if (state.view === "calibration") html += renderCalibration();
   html += renderNoteModal();
   html += renderMeasurementModal();
+  html += renderSyncToast();
   document.getElementById("app").innerHTML = html;
   saveSessionState();
   saveCalibState();

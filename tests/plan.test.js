@@ -1111,11 +1111,13 @@ ok("index.html is ASCII-only (non-BOM)", offenders.length === 0, offenders.lengt
      /if \(!PENDING_SYNC\)[\s\S]{0,120}return(\s+false)?;/.test(src));
 
   /* --- 9b. Task 8: SYNC button + LAPTOP SYNC panel -------------------
-     Slices keep these non-vacuous: "syncToLaptop" already exists as a
-     function definition and "LAPTOP SYNC" already appears in the engine
-     comment block - both must show up in the RIGHT render function. */
+     The setup form moved to DIAGNOSTICS (v8.3): the URL/token are
+     configured once, and the overview is covered by the completion
+     screen and the 2-second sync toast. Slices keep these non-vacuous. */
   const renderCompleteSrc = src.slice(src.indexOf("function renderComplete"), src.indexOf("function renderStats"));
   const renderOverviewSrc = src.slice(src.indexOf("function renderOverview"), src.indexOf("function renderComplete"));
+  const renderStatsSrc = src.slice(src.indexOf("function renderStats"), src.indexOf("function render()"));
+  const panelSrc = src.slice(src.indexOf("function renderLaptopSyncPanel"), src.indexOf('window.addEventListener("message"'));
   const saveCfgSrc = src.slice(src.indexOf("function saveLockdConfig"), src.indexOf("function queueLockdSync"));
   ok("completion screen renders SYNC TO LAPTOP button", src.includes("SYNC TO LAPTOP"));
   ok("SYNC button appears before RETURN in renderComplete",
@@ -1124,11 +1126,14 @@ ok("index.html is ASCII-only (non-BOM)", offenders.length === 0, offenders.lengt
        const b = renderCompleteSrc.indexOf("returnFromComplete()");
        return a > 0 && b > 0 && a < b;
      })());
-  ok("overview renders LAPTOP SYNC panel", renderOverviewSrc.includes("LAPTOP SYNC"));
+  ok("DIAGNOSTICS renders the LAPTOP SYNC panel",
+     renderStatsSrc.includes("renderLaptopSyncPanel()") && panelSrc.includes("LAPTOP SYNC"));
+  ok("the main page no longer carries the setup form",
+     !renderOverviewSrc.includes("lockdUrlInput") && !renderOverviewSrc.includes("LAPTOP SYNC"));
   ok("panel saves url and token",
-     renderOverviewSrc.includes("saveLaptopSyncPanel()") &&
+     panelSrc.includes("saveLaptopSyncPanel()") &&
      /Storage\.set\("laptop-sync"/.test(saveCfgSrc));
-  ok("panel has url input", /type\s*=\s*"url"/.test(renderOverviewSrc));
+  ok("panel has url input", /type\s*=\s*"url"/.test(panelSrc));
 }
 
 /* --- 9c. AUTO-SYNC: the workout syncs by itself -------------------- */
@@ -1141,8 +1146,8 @@ ok("index.html is ASCII-only (non-BOM)", offenders.length === 0, offenders.lengt
      !/setTimeout\(\s*function\s*\(\)\s*\{\s*autoSyncToLaptop/.test(src));
   const renderCompleteSrc = src.slice(src.indexOf("function renderComplete"), src.indexOf("function renderStats"));
   ok("completion screen shows a sync headline", renderCompleteSrc.includes("lockdSyncHeadline()"));
-  ok("overview panel shows a sync headline",
-     src.slice(src.indexOf("function renderOverview"), src.indexOf("function renderComplete")).includes("lockdSyncHeadline()"));
+  ok("the DIAGNOSTICS panel shows a sync headline",
+     src.slice(src.indexOf("function renderLaptopSyncPanel"), src.indexOf('window.addEventListener("message"')).includes("lockdSyncHeadline()"));
 }
 
 /* --- summary ------------------------------------------------------- */

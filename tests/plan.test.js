@@ -474,16 +474,19 @@ if (PLAN) {
   ok("pike push-ups appear on exactly 2 days (documented frequency deviation)", pikeDays.length === 2,
     "n=" + pikeDays.length + " (" + pikeDays.join(",") + ")");
 
-  /* Isometric holds: single timer value per set. Lever 50-60% of 12s ->
-     6s (bottom of range, form caveat). Hollow 60-70% of 21s -> 14s (top
-     of range: the under-30s core is the documented bottleneck). */
-  const levers = calFind("Tuck front lever holds");
-  ok("tuck lever dose is 6s (50-60% of 12s, bottom of range - form caveat)",
-    levers.length === 2 && levers.every(h => h.ex.type === "time" && h.ex.duration === 6),
+  /* Isometric holds: single timer value per set.
+     v8.3 (Oct 21 2026): the tuck lever becomes BAND-ASSISTED at 12s - the
+     unassisted 12s max was flagged for poor form, so the band buys a clean
+     hips-level hold instead of a longer bad one - and the hollow becomes a
+     ONE-LEG hold at 20s. One leg extended is a bridge variation (easier
+     than the full hollow), which is why the time goes UP here. */
+  const levers = calFind("Band-assisted tuck front lever holds");
+  ok("band-assisted tuck lever dose is 12s on both pulling days",
+    levers.length === 2 && levers.every(h => h.ex.type === "time" && h.ex.duration === 12),
     levers.length ? "got " + levers.map(h => calDose(h.ex)).join(",") : "not in plan");
-  const hollows = calFind("Hollow body hold (arms at sides)");
-  ok("hollow body hold carries measured variant + dose 14s (60-70% of 21s)",
-    hollows.length === 4 && hollows.every(h => h.ex.type === "time" && h.ex.duration === 14),
+  const hollows = calFind("One-leg hollow body hold");
+  ok("one-leg hollow body hold dose is 20s on all 4 core days",
+    hollows.length === 4 && hollows.every(h => h.ex.type === "time" && h.ex.duration === 20),
     hollows.length ? "n=" + hollows.length + " got " + hollows.map(h => calDose(h.ex)).join(",") : "not in plan");
 
   /* Warm-up hollow holds must sit strictly below the main dose: the old
@@ -491,8 +494,8 @@ if (PLAN) {
      two of them (Friday and Saturday); Monday and Thursday gave theirs up
      to the handstand block and the ankle work. */
   const warmHollow = calItems.filter(i => i.sec === "warmup" && i.ex.name.indexOf("Hollow hold") === 0);
-  ok("warm-up hollow holds scaled below the main dose (2 items, all < 14s)",
-    warmHollow.length === 2 && warmHollow.every(i => i.ex.type === "time" && i.ex.duration < 14),
+  ok("warm-up hollow holds scaled below the main dose (2 items, all < 20s)",
+    warmHollow.length === 2 && warmHollow.every(i => i.ex.type === "time" && i.ex.duration < 20),
     "n=" + warmHollow.length + " got " + warmHollow.map(i => i.ex.name + "=" + calDose(i.ex)).join(", "));
 
   /* --- 6f. equipment legality (v8.0, Oct 17 2026) ------------------- */
@@ -502,6 +505,7 @@ if (PLAN) {
      slot. This is the assertion that catches it, and it is the reason
      the week is shaped the way it is. */
   const BAR_RING = ["Scapular pull-ups", "Dead hang (light)", "Strict pull-ups", "Tuck front lever holds",
+    "Band-assisted tuck front lever holds", "One-leg tuck front lever holds",
     "Ring rows", "Pull-ups", "Assisted pull-ups", "Band pull-up negatives",
     "Ring rows (feet elevated)", "Australian pulls", "Australian pulls (elevated)"];
   const NO_BAR_DAYS = ["Monday", "Thursday"];
@@ -686,7 +690,7 @@ ok("renderCalibEntry renders the retest banner", /RETEST DUE/.test(src) && /RETE
    because the name changes when the variant does (spec 8.2). */
 {
   const batMatch3 = src.match(/var BATTERY = (\[[\s\S]*?\n\]);/);
-  const ovMatch = src.match(/function calibOverlayFor[\s\S]*?\n\}/);
+  const ovMatch = src.match(/function calibVariantConflict[\s\S]*?\n\}\s+function calibOverlayFor[\s\S]*?\n\}/);
   const geMatch = src.match(/function getEffective[\s\S]*?\n\}/);
   ok("calibOverlayFor extractable", !!ovMatch, "not found");
   ok("getEffective extractable", !!geMatch, "not found");
@@ -925,6 +929,146 @@ ok("renderCalibEntry renders the retest banner", /RETEST DUE/.test(src) && /RETE
   }
 }
 
+/* --- 6n. v8.3 plan change (Oct 21 2026): one-leg hollow + assisted tuck lever --- */
+/* Adam: "Hollow body holds will be one leg hollow body holds but increase the
+   time. And tuck front lever will be assited tucked front lever."
+   Settled with him: one-leg hollow at 20s, legs alternating every set;
+   band-assisted tuck front lever at 12s on the same two pulling days.
+   Two consequences beyond the plan text: the battery needs a "one-leg"
+   hollow variant (so a retest can measure the variation the plan actually
+   uses), and the calibration overlay must stop pushing a two-leg hollow
+   dose or a plain-tuck dose onto the new movements. */
+if (PLAN) {
+  const items = [];
+  DAYS.forEach(function (d) {
+    const day = PLAN[d];
+    if (!day || day.mode !== "session") return;
+    ["warmup", "main", "cooldown"].forEach(function (sec) {
+      (day[sec] || []).forEach(function (ex) { items.push({ day: d, sec: sec, ex: ex }); });
+    });
+  });
+  const find = function (n) { return items.filter(function (i) { return i.ex.name === n; }); };
+  const dose = function (ex) { return ex.type === "time" ? ex.duration + "s" : ex.label; };
+
+  ok("the two-leg hollow is no longer prescribed", find("Hollow body hold (arms at sides)").length === 0,
+    find("Hollow body hold (arms at sides)").map(function (i) { return i.day + "." + i.sec; }).join(", "));
+  ok("the unassisted tuck lever is no longer prescribed", find("Tuck front lever holds").length === 0,
+    find("Tuck front lever holds").map(function (i) { return i.day + "." + i.sec; }).join(", "));
+
+  const oneLeg = find("One-leg hollow body hold");
+  ok("one-leg hollow body hold is a main item on 4 days",
+    oneLeg.length === 4 && oneLeg.every(function (i) { return i.sec === "main"; }),
+    oneLeg.map(function (i) { return i.day + "." + i.sec; }).join(", "));
+  ok("one-leg hollow body hold keeps the hollow cal key and a 20s dose",
+    oneLeg.length === 4 && oneLeg.every(function (i) { return i.ex.cal === "hollow" && i.ex.type === "time" && i.ex.duration === 20; }),
+    oneLeg.map(function (i) { return i.day + " " + dose(i.ex); }).join(", "));
+  ok("one-leg hollow body hold tells him to switch legs",
+    oneLeg.length > 0 && oneLeg.every(function (i) { return /leg/i.test(i.ex.cue) && /switch/i.test(i.ex.cue); }),
+    oneLeg.length ? oneLeg[0].ex.cue : "no cue");
+
+  const assisted = find("Band-assisted tuck front lever holds");
+  ok("band-assisted tuck front lever is a main item on Wednesday and Saturday",
+    assisted.length === 2 && assisted.map(function (i) { return i.day; }).join(",") === "Wednesday,Saturday",
+    assisted.map(function (i) { return i.day; }).join(","));
+  ok("band-assisted tuck front lever keeps the tucklever cal key and a 12s dose",
+    assisted.length === 2 && assisted.every(function (i) { return i.ex.cal === "tucklever" && i.ex.type === "time" && i.ex.duration === 12; }),
+    assisted.map(function (i) { return i.day + " " + dose(i.ex); }).join(", "));
+  ok("band-assisted tuck front lever names the band in its cue",
+    assisted.length > 0 && assisted.every(function (i) { return /band/i.test(i.ex.cue); }),
+    assisted.length ? assisted[0].ex.cue : "no cue");
+  ok("the assisted lever keeps its set counts (Wed 5, Sat 4)",
+    assisted.length === 2 && assisted[0].ex.sets === 5 && assisted[1].ex.sets === 4,
+    assisted.map(function (i) { return i.day + " " + i.ex.sets + " sets"; }).join(", "));
+
+  /* the warm-up ramp must stay below the new main dose */
+  const warm = items.filter(function (i) { return i.sec === "warmup" && i.ex.name.indexOf("Hollow hold") === 0; });
+  ok("warm-up hollow holds stay below the 20s main dose",
+    warm.length === 2 && warm.every(function (i) { return i.ex.duration < 20; }),
+    warm.map(function (i) { return i.ex.name + "=" + dose(i.ex); }).join(", "));
+
+  /* the muscle tags follow the rename - the volume panel must not count
+     the new movements as zero, and the old keys must not linger as
+     orphans (the old names still resolve through the variant fallback) */
+  const tagStart = src.indexOf("var MUSCLE_TAGS");
+  const tagEnd = src.indexOf("var MUSCLE_GROUPS");
+  let TAGS = null;
+  try {
+    const ts = {};
+    vm.createContext(ts);
+    vm.runInContext(src.slice(tagStart, tagEnd), ts, { filename: "tags-v83.js" });
+    TAGS = ts.MUSCLE_TAGS;
+  } catch (e) { TAGS = null; }
+  ok("MUSCLE_TAGS block still evaluates for the v8.3 names", TAGS !== null);
+  ok("the new movements carry muscle tags",
+    TAGS && !!TAGS["One-leg hollow body hold"] && !!TAGS["Band-assisted tuck front lever holds"],
+    TAGS ? Object.keys(TAGS).join(",") : "not evaluable");
+  ok("the old tag keys are gone (history resolves through the variant fallback)",
+    TAGS && !TAGS["Hollow body hold (arms at sides)"] && !TAGS["Tuck front lever holds"]);
+
+  /* the battery must offer the variation the plan uses, and it must be
+     the DEFAULT chip so the next retest measures the right thing */
+  const batMatch5 = src.match(/var BATTERY = (\[[\s\S]*?\n\]);/);
+  ok("BATTERY block found for the v8.3 check", !!batMatch5);
+  if (batMatch5) {
+    const bs = {};
+    vm.createContext(bs);
+    vm.runInContext("var BATTERY = " + batMatch5[1], bs, { filename: "battery-v83.js" });
+    const hollow = bs.BATTERY.filter(function (t) { return t.id === "hollow"; })[0];
+    ok("the hollow battery test offers a one-leg variant",
+      hollow && hollow.variants.indexOf("one-leg") > -1, hollow ? hollow.variants.join(",") : "no hollow test");
+    ok("the one-leg hollow variant maps to the plan exercise name",
+      hollow && hollow.variantNames && hollow.variantNames["one-leg"] === "One-leg hollow body hold",
+      hollow ? JSON.stringify(hollow.variantNames) : "no hollow test");
+    ok("one-leg is the default hollow variant (the retest measures the plan's variation)",
+      hollow && hollow.variants[0] === "one-leg", hollow ? hollow.variants.join(",") : "no hollow test");
+  }
+}
+
+/* --- 6o. the overlay must not push a dose onto a different variant --- */
+/* The plan now prescribes the one-leg hollow and the band-assisted tuck.
+   A battery result measured on the two-leg hollow or the plain tuck
+   describes a DIFFERENT exercise, so its dose must not be applied to
+   these two - it would silently overwrite Adam's new prescription. */
+{
+  const batMatch6 = src.match(/var BATTERY = (\[[\s\S]*?\n\]);/);
+  const ovMatch = src.match(/function calibVariantConflict[\s\S]*?\n\}\s+function calibOverlayFor[\s\S]*?\n\}/);
+  const geMatch = src.match(/function getEffective[\s\S]*?\n\}/);
+  ok("calibOverlayFor extractable for the variant gate", !!ovMatch, "not found");
+  ok("getEffective extractable for the variant gate", !!geMatch, "not found");
+  if (batMatch6 && ovMatch && geMatch) {
+    try {
+      const vs = {};
+      vm.createContext(vs);
+      vm.runInContext(
+        "var BATTERY = " + batMatch6[1] + ";" +
+        "var PLAN = { Monday: { mode:'session', warmup:[], main:[" +
+        "  {name:'One-leg hollow body hold', cal:'hollow', type:'time', duration:20, sets:3, rest:60}," +
+        "  {name:'Band-assisted tuck front lever holds', cal:'tucklever', type:'time', duration:12, sets:5, rest:90}" +
+        "], cooldown:[] } };" +
+        "var state = { overrides:{} };" +
+        "function overrideKey(d,s,i){ return d+'|'+s+'|'+i; }" +
+        ovMatch[0] + geMatch[0] +
+        ";function probe(doses){ state.planCalibration = { doses: doses }; return [getEffective('Monday','MAIN',0), getEffective('Monday','MAIN',1)]; }",
+        vs, { filename: "variant-gate.js" });
+      const twoLeg = vs.probe({ hollow: { duration: 14, variant: "arms at sides" } });
+      ok("a two-leg hollow dose does not touch the one-leg hollow",
+        twoLeg[0].duration === 20 && twoLeg[0].name === "One-leg hollow body hold", JSON.stringify(twoLeg[0]));
+      const oneLegDose = vs.probe({ hollow: { duration: 18, variant: "one-leg" } });
+      ok("a one-leg hollow dose DOES apply to the one-leg hollow",
+        oneLegDose[0].duration === 18 && oneLegDose[0].name === "One-leg hollow body hold", JSON.stringify(oneLegDose[0]));
+      const plainTuck = vs.probe({ tucklever: { duration: 6, variant: "tuck" } });
+      ok("a plain-tuck dose does not touch the band-assisted tuck",
+        plainTuck[1].duration === 12 && plainTuck[1].name === "Band-assisted tuck front lever holds", JSON.stringify(plainTuck[1]));
+      const bandTuck = vs.probe({ tucklever: { duration: 14, variant: "band-assisted tuck" } });
+      ok("a band-assisted tuck dose DOES apply to the band-assisted tuck",
+        bandTuck[1].duration === 14 && bandTuck[1].name === "Band-assisted tuck front lever holds", JSON.stringify(bandTuck[1]));
+      const noVariant = vs.probe({ hollow: { duration: 16 } });
+      ok("a dose with no measured variant still applies (it is not a variant conflict)",
+        noVariant[0].duration === 16, JSON.stringify(noVariant[0]));
+    } catch (e) { ok("the variant gate evaluates with a fixture", false, e.message); }
+  }
+}
+
 /* --- 7. version + assets ------------------------------------------- */
 const verMatch = html.match(/var APP_VERSION = "(v[0-9]+(?:\.[0-9]+)*)"/);
 ok("APP_VERSION present and well formed", !!verMatch, "none found");
@@ -942,7 +1086,7 @@ ok("index.html is ASCII-only (non-BOM)", offenders.length === 0, offenders.lengt
 
 /* --- 9. laptop sync engine (lockd) -------------------------------- */
 {
-  ok("APP_VERSION bumped to v8.2", /var APP_VERSION = "v8\.2"/.test(src));
+  ok("APP_VERSION bumped to v8.3", /var APP_VERSION = "v8\.3"/.test(src));
   ok("defines lockdConfigured", /function\s+lockdConfigured\s*\(/.test(src));
   ok("defines queueLockdSync", /function\s+queueLockdSync\s*\(/.test(src));
   ok("defines syncToLaptop", /function\s+syncToLaptop\s*\(/.test(src));

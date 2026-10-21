@@ -24,7 +24,10 @@ Variant used: `chest-to-wall / back-to-wall / wall plank`
 
 ### 2. Tuck front lever hold (bar or rings) - max seconds
 Scapulae pulled down and back, flat lower back. Stop the clock when the hips drop.
-Variant used: `tuck / band-assisted tuck / one-leg tuck`
+Variant used: `band-assisted tuck / tuck / one-leg tuck`
+Use the BAND-ASSISTED tuck unless you are deliberately testing the unassisted
+one - the plan prescribes the band-assisted tuck, and a dose measured on a
+different variant is not applied to it (v8.3).
 
 RESULT:
 
@@ -60,7 +63,10 @@ RESULT:
 
 ### 8. Hollow body hold (floor) - max seconds
 Lower back glued to the floor. Stop the clock the moment it lifts.
-Variant used: `arms overhead / arms at sides / knees bent`
+Variant used: `one-leg / arms overhead / arms at sides / knees bent`
+Use the ONE-LEG hold unless you are deliberately testing the two-leg one - the
+plan prescribes the one-leg hollow, and a dose measured on a different variant
+is not applied to it (v8.3).
 
 RESULT:
 

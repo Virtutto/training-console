@@ -97,6 +97,13 @@ function R(label){ return { type: "reps", label: label }; }
    pulling sits on Wednesday and Saturday and legs took Thursday.
    Every exercise carries a `cue` (one-line form description) shown in
    the session view and on the rest screen.
+
+   v8.3 (2026-10-21, Adam's call): the hollow is now a ONE-LEG hold at
+   20s (one leg extended is a bridge variation, easier than the full
+   hollow, so the time goes up) and the tuck lever is BAND-ASSISTED at
+   12s (the unassisted 12s max was flagged for poor form, so the band
+   buys a clean hips-level hold). A battery dose for a different variant
+   no longer overwrites these two - see calibOverlayFor.
    ============================================================ */
 var PLAN = {
   Sunday: { mode: "rest", title: "REST", subtitle: "Recovery day - no session" },
@@ -131,9 +138,9 @@ var PLAN = {
     ],
     main: [
       Object.assign({name:"Chest-to-wall handstand holds", cal:"handstand", cue:"Chest and toes to the wall, push tall, squeeze glutes, ribs down. Stop at the first form break.", sets:3, rest:90}, T(8)),
-      Object.assign({name:"Tuck front lever holds", cal:"tucklever", cue:"Hips level with the shoulders, arms straight, scapulae pulled down. Stop when the hips drop.", sets:5, rest:90}, T(6)),
+      Object.assign({name:"Band-assisted tuck front lever holds", cal:"tucklever", cue:"Band to the bar - thinnest band that keeps the hips level with the shoulders. Arms straight, scapulae pulled down, stop when the hips drop.", sets:5, rest:90}, T(12)),
       Object.assign({name:"Strict pull-ups", cal:"pullups", cue:"Dead hang start, chin over the bar, no kipping, full extension every rep.", sets:4, rest:120}, R("3 reps")),
-      Object.assign({name:"Hollow body hold (arms at sides)", cal:"hollow", cue:"Low back pressed to the floor, ribs down, legs straight and low.", sets:3, rest:60}, T(14))
+      Object.assign({name:"One-leg hollow body hold", cal:"hollow", cue:"One leg extended and low, the other tucked - switch legs every set. Low back flat, ribs down, hips off the floor.", sets:3, rest:60}, T(20))
     ],
     cooldown: [
       Object.assign({name:"Lat stretch", cue:"Hold and breathe, no bouncing."}, T(30)),
@@ -151,7 +158,7 @@ var PLAN = {
       Object.assign({name:"Chest-to-wall handstand holds", cal:"handstand", cue:"Chest and toes to the wall, push tall, squeeze glutes, ribs down. Stop at the first form break.", sets:3, rest:90}, T(8)),
       Object.assign({name:"Pistol squat (assisted)", cal:"pistol", cue:"Hold the box, sit back and down on one leg, heel flat, knee tracks over the toe. Progress by lowering the box, not by adding reps.", sets:4, rest:90}, R("3-5 / leg")),
       Object.assign({name:"Bulgarian split squats (feet elevated)", cal:"bulgarian", cue:"Rear foot on the box, front shin vertical, drop straight down.", sets:3, rest:75}, R("8-9 / leg")),
-      Object.assign({name:"Hollow body hold (arms at sides)", cal:"hollow", cue:"Low back pressed to the floor, ribs down, legs straight and low.", sets:3, rest:60}, T(14))
+      Object.assign({name:"One-leg hollow body hold", cal:"hollow", cue:"One leg extended and low, the other tucked - switch legs every set. Low back flat, ribs down, hips off the floor.", sets:3, rest:60}, T(20))
     ],
     cooldown: [
       Object.assign({name:"Hip flexor stretch", cue:"Tuck the pelvis, squeeze the glute, hold."}, T(30)),
@@ -172,7 +179,7 @@ var PLAN = {
       Object.assign({name:"Heel/toe pulls (chest-to-wall)", cue:"Chest to wall, shift weight onto the hands, lift one heel then the other. Slow.", sets:3, rest:60}, R("4 reps")),
       Object.assign({name:"Pike push-ups (elevated feet)", cal:"pike", cue:"Hips high, head between the hands, elbows track back.", sets:4, rest:90}, R("4-5 reps")),
       Object.assign({name:"Diamond push-ups (full)", cal:"diamond", cue:"Hands together under the chest, elbows tucked, body one line.", sets:4, rest:75}, R("5-6 reps")),
-      Object.assign({name:"Hollow body hold (arms at sides)", cal:"hollow", cue:"Low back pressed to the floor, ribs down, legs straight and low.", sets:3, rest:60}, T(14))
+      Object.assign({name:"One-leg hollow body hold", cal:"hollow", cue:"One leg extended and low, the other tucked - switch legs every set. Low back flat, ribs down, hips off the floor.", sets:3, rest:60}, T(20))
     ],
     cooldown: [
       Object.assign({name:"Chest doorway stretch", cue:"Elbow at shoulder height, lean through, hold."}, T(30)),
@@ -188,11 +195,11 @@ var PLAN = {
     ],
     main: [
       Object.assign({name:"Chest-to-wall handstand holds", cal:"handstand", cue:"Chest and toes to the wall, push tall, squeeze glutes, ribs down. Stop at the first form break.", sets:3, rest:90}, T(8)),
-      Object.assign({name:"Tuck front lever holds", cal:"tucklever", cue:"Hips level with the shoulders, arms straight, scapulae pulled down. Stop when the hips drop.", sets:4, rest:90}, T(6)),
+      Object.assign({name:"Band-assisted tuck front lever holds", cal:"tucklever", cue:"Band to the bar - thinnest band that keeps the hips level with the shoulders. Arms straight, scapulae pulled down, stop when the hips drop.", sets:4, rest:90}, T(12)),
       /* UNMEASURED - the battery covered the vertical pull only (5 strict);
          dial foot elevation so the 8-10 stays honest until a row test exists */
       Object.assign({name:"Ring rows", cal:"ringrows", cue:"Body straight, pull the chest to the rings, elbows close. Elevate the feet to progress.", sets:4, rest:90}, R("8-10 reps")),
-      Object.assign({name:"Hollow body hold (arms at sides)", cal:"hollow", cue:"Low back pressed to the floor, ribs down, legs straight and low.", sets:4, rest:60}, T(14))
+      Object.assign({name:"One-leg hollow body hold", cal:"hollow", cue:"One leg extended and low, the other tucked - switch legs every set. Low back flat, ribs down, hips off the floor.", sets:4, rest:60}, T(20))
     ],
     cooldown: [
       Object.assign({name:"Lat stretch", cue:"Hold and breathe, no bouncing."}, T(30)),
@@ -201,7 +208,7 @@ var PLAN = {
   }
 };
 var WINDUP_SECONDS = 5;
-var APP_VERSION = "v8.2";
+var APP_VERSION = "v8.3";
 
 /* ============================================================
    MUSCLE GROUP TAGS (exercise -> muscle groups + weight)
@@ -219,9 +226,9 @@ var MUSCLE_TAGS = {
   "Scapular pull-ups":              { lats: 2, rear_delts: 2, forearms: 1 },
   "Strict pull-ups":                { lats: 3, biceps: 2, forearms: 2, rear_delts: 1 },
   "Ring rows":                      { lats: 2, biceps: 2, rear_delts: 2, forearms: 1 },
-  "Tuck front lever holds":         { lats: 3, core: 2, rear_delts: 2, forearms: 1 },
+  "Band-assisted tuck front lever holds": { lats: 3, core: 2, rear_delts: 2, forearms: 1 },
   "Dead hang (light)":              { forearms: 2, lats: 1 },
-  "Hollow body hold (arms at sides)": { core: 3 },
+  "One-leg hollow body hold":       { core: 3 },
   "Hollow hold (light)":            { core: 1 },
   "Pistol squat (assisted)":          { quads: 3, glutes: 2, core: 1 },
   "Bulgarian split squats (feet elevated)": { quads: 3, glutes: 2, hamstrings: 1 }
@@ -238,12 +245,34 @@ function overrideKey(day, section, idx){ return day + "|" + section + "|" + idx;
    stable movement id in `cal`, NOT by name: the name changes when the
    variant does, so a name-keyed overlay would orphan itself the moment it
    did its job. Returns a patch object, or null. */
+/* A battery result measured on one VARIANT cannot be applied to a plan
+   exercise that is a DIFFERENT variant of the same movement: the plan
+   prescribes the one-leg hollow and the band-assisted tuck lever, and a
+   result for the two-leg hollow or the plain tuck describes another
+   exercise. Returns the conflicting measured name, or null when the dose
+   may apply. Shared by the overlay (which applies it) and the review
+   screen (which must not promise it). */
+function calibVariantConflict(calId, planName, variant) {
+  if (!calId || !planName || !variant) return null;
+  var t = null;
+  BATTERY.forEach(function(b){ if (b.id === calId) t = b; });
+  if (!t || !t.variantNames) return null;
+  var measured = t.variantNames[variant];
+  if (!measured || measured === planName) return null;
+  var planIsVariant = false;
+  Object.keys(t.variantNames).forEach(function(k){
+    if (t.variantNames[k] === planName) planIsVariant = true;
+  });
+  return planIsVariant ? measured : null;
+}
+
 function calibOverlayFor(base) {
   if (!base || !base.cal) return null;
   var pc = state.planCalibration;
   if (!pc || !pc.doses) return null;
   var d = pc.doses[base.cal];
   if (!d) return null;
+  if (calibVariantConflict(base.cal, base.name, d.variant)) return null;
   var patch = {};
   if (d.duration != null) patch.duration = d.duration;
   if (d.label != null) patch.label = d.label;
@@ -1437,7 +1466,7 @@ var BATTERY = [
                     "wall plank": "Wall plank holds" } },
   { id: "tucklever", n: 2, name: "Tuck front lever hold", input: "hold", attempts: 1,
     cues: "Scapulae pulled down and back, flat lower back. Stop the clock when the hips drop.",
-    variants: ["tuck", "band-assisted tuck", "one-leg tuck"], restAfter: 180,
+    variants: ["band-assisted tuck", "tuck", "one-leg tuck"], restAfter: 180,
     rule: "skill_hold", unit: null, fixedLabel: null,
     variantNames: { "tuck": "Tuck front lever holds",
                     "band-assisted tuck": "Band-assisted tuck front lever holds",
@@ -1478,9 +1507,10 @@ var BATTERY = [
                     "feet-assisted": "Scapular pull-ups (feet-assisted)" } },
   { id: "hollow", n: 8, name: "Hollow body hold", input: "hold", attempts: 1,
     cues: "Lower back glued to the floor. Stop the clock the moment it lifts.",
-    variants: ["arms overhead", "arms at sides", "knees bent"], restAfter: 180,
+    variants: ["one-leg", "arms overhead", "arms at sides", "knees bent"], restAfter: 180,
     rule: "core_hold", unit: null, fixedLabel: null,
-    variantNames: { "arms overhead": "Hollow body hold (arms overhead)",
+    variantNames: { "one-leg": "One-leg hollow body hold",
+                    "arms overhead": "Hollow body hold (arms overhead)",
                     "arms at sides": "Hollow body hold (arms at sides)",
                     "knees bent": "Hollow body hold (knees bent)" } },
   { id: "pistol", n: 9, name: "Pistol squat", input: "perleg", attempts: 1,
@@ -1865,13 +1895,19 @@ function calibReviewRows() {
     var r = c.results[t.id] || {};
     var newName = (r.variant && t.variantNames && t.variantNames[r.variant]) || null;
     var variantText = (newName && cur && newName !== cur.name) ? (cur.name + " -> " + newName) : "";
+    /* A dose measured on a different VARIANT will not be applied, so it
+       must not be shown as a change either - the review screen and the
+       engine have to agree. */
+    var conflict = cur ? calibVariantConflict(t.id, cur.name, r.variant) : null;
+    if (conflict) next = nowText;
     rows.push({
       id: t.id,
       name: (cur && cur.name) || t.name,
       now: nowText,
       next: next,
       flag: calibRegression(t.id, r) ? "REGRESSION" : "",
-      variant: variantText
+      variant: variantText,
+      conflict: conflict
     });
   });
   return rows;
@@ -2064,7 +2100,7 @@ function renderCalibEntry(t) {
    by calibReviewRows(); STRUCTURAL is a Nexus call - a movement added or
    removed, a day swap or a frequency change - which the battery cannot compute,
    so no row carries it unless a future rule sets it. Spec section 7. */
-var CAL_FLAGS = { "REGRESSION": "#ff7b86", "STRUCTURAL": "#ff9500", "NOT MEASURED": "#8a9aa5" };
+var CAL_FLAGS = { "REGRESSION": "#ff7b86", "STRUCTURAL": "#ff9500", "NOT MEASURED": "#8a9aa5", "VARIANT MISMATCH": "#ff9500" };
 
 function renderCalibration() {
   var t = theme();
@@ -2179,7 +2215,12 @@ function renderCalibration() {
     html += '<button class="bigbtn" onclick="calibSaveBattery()" style="background:'+t.accent+';color:#02080a;box-shadow:0 0 24px '+t.glow+';">'+icoCheck("#02080a")+' SAVE BATTERY</button>';
   } else if (c.phase === "review") {
     var rows = calibReviewRows();
-    var changed = rows.filter(function(r){ return (r.next !== r.now) || r.variant; }).length;
+    /* a real change only: a movement with no result ("-") is not a change,
+       and a dose the overlay will refuse (variant conflict) is not one
+       either - the header must not promise what the engine will not do */
+    var changed = rows.filter(function(r){
+      return r.next !== "-" && ((r.next !== r.now) || (r.variant && !r.conflict));
+    }).length;
     html += '<div class="panel" style="text-align:center;margin-bottom:14px;">'+
       '<div class="hdr" style="font-size:20px;color:'+t.accent+';text-shadow:0 0 12px '+t.glow+';">REVIEW</div>'+
       '<div class="dim" style="font-size:11px;margin-top:6px;">'+changed+' of '+rows.length+' movements would change. Nothing is applied until you tap APPLY.</div></div>';
@@ -2191,6 +2232,7 @@ function renderCalibration() {
         '<span style="color:#cde3ec;">'+r.name+'</span>'+
         '<span style="color:'+t.accent+';white-space:nowrap;">'+r.now+' -> '+r.next+'</span></div>'+
         (r.variant ? '<div style="font-size:10px;color:#b48cff;margin-top:3px;">VARIANT: '+r.variant+'</div>' : '')+
+        (r.conflict ? '<div style="font-size:10px;color:'+(CAL_FLAGS["VARIANT MISMATCH"] || "#ff9500")+';margin-top:3px;letter-spacing:1px;">VARIANT MISMATCH - measured "'+r.conflict+'", the plan uses "'+r.name+'" - not applied</div>' : '')+
         (r.flag ? '<div style="font-size:10px;color:'+(CAL_FLAGS[r.flag] || "#ff9500")+';margin-top:3px;letter-spacing:1px;">'+r.flag+'</div>' : '')+
         '</div>';
     });

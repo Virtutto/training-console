@@ -545,6 +545,11 @@ var laptopSync = { url: "", token: "" };
 var PENDING_SYNC = null;
 var SYNC_WAITING = false;
 var SYNC_STATUS = "";
+/* SYNC_STATE drives the headline: idle | syncing | ok | error */
+var SYNC_STATE = "idle";
+var SYNC_TIMER = null;
+/* Auto-sync after a workout: on by default, the user can switch it off. */
+var AUTO_SYNC = true;
 
 (function loadAll(){
   var raw = Storage.get("workout-history");
@@ -597,6 +602,8 @@ var SYNC_STATUS = "";
   if (rawPendingSync) {
     try { PENDING_SYNC = JSON.parse(rawPendingSync); } catch(e) { PENDING_SYNC = null; }
   }
+  /* Auto-sync is ON unless the user explicitly switched it off. */
+  if (Storage.get("lockd-auto-sync") === "0") AUTO_SYNC = false;
   /* Only restore calibration runs started today - stale ones get discarded */
   if (state.calib && (state.calib.date !== todayISO || state.calib.phase === "done" || state.calib.viewOnly)) {
     state.calib = null;
@@ -615,6 +622,10 @@ function logCompletion(day, type) {
   var record = { date: localISO(new Date()), day: day, type: type, at: new Date().toISOString() };
   saveHistory(state.history.concat([record]));
   queueLockdSync(type);
+  /* The workout is done - tell the laptop straight away. This call is
+     synchronous on purpose: it runs inside the tap that ended the
+     session, which is what lets the popup through the blocker. */
+  autoSyncToLaptop();
 }
 function recordExerciseHistory(day, cutoffIdx) {
   var passed = state.queue.slice(0, cutoffIdx);
@@ -952,13 +963,22 @@ function exitSession() {
   Storage.set("active-session", "");
   render();
 }
-function returnFromComplete() { state.view = "overview"; Storage.set("active-session", ""); render(); }
+function returnFromComplete() {
+  state.view = "overview"; Storage.set("active-session", "");
+  /* If the sync never got out (popup blocked), this tap is a fresh user
+     gesture - try once more before the session is forgotten. */
+  autoSyncToLaptop();
+  render();
+}
 
 /* ============================================================
    LAPTOP SYNC (lockd)
-   The console records a PENDING sync on completion (popup blockers
-   forbid auto-opening a window), then the user taps SYNC to open the
-   daemon popup, which postMessages the result back to this window.
+   The console records a PENDING sync on completion and then opens
+   the daemon popup itself - the popup is the only way an HTTPS
+   page can reach an HTTP device on the LAN (fetch/XHR/iframes are
+   blocked as mixed content; a top-level navigation is not). It has
+   to be opened from inside the tap that ended the workout, because
+   only a user-initiated window.open survives the popup blocker.
    ============================================================ */
 (function loadLaptopSync(){
   var raw = Storage.get("laptop-sync");
@@ -977,15 +997,30 @@ function lockdConfigured() {
   return /^https?:\/\//i.test(url) && token.length > 0;
 }
 
+function lockdAutoSyncEnabled() {
+  return AUTO_SYNC !== false;
+}
+
+function setLockdAutoSync(on) {
+  AUTO_SYNC = !!on;
+  try { Storage.set("lockd-auto-sync", on ? "1" : "0"); } catch (e) {}
+  render();
+}
+
+function toggleLockdAutoSync() {
+  setLockdAutoSync(!lockdAutoSyncEnabled());
+}
+
 function saveLockdConfig() {
   try { Storage.set("laptop-sync", JSON.stringify(laptopSync)); } catch (e) {}
 }
 
 function queueLockdSync(type) {
   if (!lockdConfigured()) return;
-  /* A stale status from an earlier tap must not outlive a fresh queue. */
-  SYNC_STATUS = "";
-  SYNC_WAITING = false;
+  /* A stale status from an earlier tap must not outlive a fresh queue -
+     but a sync that is already in flight keeps its status: its reply
+     still has to be accepted. */
+  if (!SYNC_WAITING) SYNC_STATUS = "";
   PENDING_SYNC = { date: localISO(new Date()), type: type, at: new Date().toISOString() };
   try { Storage.set("lockd-pending-sync", JSON.stringify(PENDING_SYNC)); } catch (e) {}
 }
@@ -999,25 +1034,91 @@ function lockdStatusText() {
   if (SYNC_STATUS) return SYNC_STATUS;
   if (PENDING_SYNC) return "Pending: " + PENDING_SYNC.date + " - tap SYNC";
   if (!lockdConfigured()) return "Not configured";
+  if (!lockdAutoSyncEnabled()) return "Auto-sync off";
   return "In sync";
 }
 
-function syncToLaptop() {
-  if (!lockdConfigured()) { SYNC_STATUS = "Not configured - set the laptop URL and token in the panel below."; render(); return; }
-  if (!PENDING_SYNC) { SYNC_STATUS = "Nothing to sync - log a session first."; render(); return; }
-  var d = PENDING_SYNC;
-  var url = laptopSync.url.trim().replace(/\/$/, "") +
-            "/sync?date=" + encodeURIComponent(d.date) +
-            "&type=" + encodeURIComponent(d.type) +
-            "&token=" + encodeURIComponent(laptopSync.token.trim());
+/* The headline the screens lead with - one word for where we are. */
+function lockdSyncHeadline() {
+  if (SYNC_STATE === "ok") return "GAMES UNLOCKED";
+  if (SYNC_STATE === "syncing") return "SYNCING TO LAPTOP";
+  if (SYNC_STATE === "error") return "SYNC FAILED";
+  if (PENDING_SYNC) return "READY TO SYNC";
+  if (!lockdConfigured()) return "LAPTOP SYNC NOT SET UP";
+  if (!lockdAutoSyncEnabled()) return "AUTO-SYNC OFF";
+  return "IN SYNC";
+}
+
+function lockdSyncColour() {
+  var t = theme();
+  if (SYNC_STATE === "ok" || SYNC_STATE === "syncing") return t.accent;
+  if (SYNC_STATE === "error") return "#ff7b86";
+  return TEXT_DIM;
+}
+
+function lockdSyncUrl(d) {
+  return laptopSync.url.trim().replace(/\/$/, "") +
+         "/sync?date=" + encodeURIComponent(d.date) +
+         "&type=" + encodeURIComponent(d.type) +
+         "&token=" + encodeURIComponent(laptopSync.token.trim());
+}
+
+/* The popup answers within a few seconds or it never answers at all -
+   do not leave the screen saying "syncing" forever. */
+function armLockdSyncTimeout() {
+  if (SYNC_TIMER) { clearTimeout(SYNC_TIMER); SYNC_TIMER = null; }
+  SYNC_TIMER = setTimeout(function () {
+    SYNC_TIMER = null;
+    if (!SYNC_WAITING) return;
+    SYNC_WAITING = false;
+    SYNC_STATE = "error";
+    SYNC_STATUS = "No reply from the laptop - tap SYNC to retry.";
+    render();
+  }, 12000);
+}
+
+/* Core: open the daemon popup. Returns true when a popup was opened.
+   Deliberately does NOT render - the caller decides when to repaint. */
+function openLockdSyncPopup() {
+  if (!lockdConfigured()) {
+    SYNC_STATUS = "Not configured - set the laptop URL and token in the panel below.";
+    return false;
+  }
+  if (!PENDING_SYNC) {
+    SYNC_STATUS = "Nothing to sync - log a session first.";
+    return false;
+  }
+  if (SYNC_WAITING) return false;
+  var url = lockdSyncUrl(PENDING_SYNC);
   SYNC_WAITING = true;
-  SYNC_STATUS = "Waiting...";
+  SYNC_STATE = "syncing";
+  SYNC_STATUS = "Syncing to laptop...";
   var win = window.open(url, "lockdSync", "width=420,height=240");
   if (!win) {
     SYNC_WAITING = false;
+    SYNC_STATE = "error";
     SYNC_STATUS = "Popup blocked - tap SYNC to retry.";
+    return false;
   }
+  armLockdSyncTimeout();
+  return true;
+}
+
+/* Manual sync (the SYNC button). */
+function syncToLaptop() {
+  openLockdSyncPopup();
   render();
+}
+
+/* Automatic sync, fired the moment a workout is logged. Must stay
+   SYNCHRONOUS: it runs inside the tap that ended the session, which
+   is what makes the popup user-initiated (and therefore allowed). */
+function autoSyncToLaptop() {
+  if (!lockdAutoSyncEnabled()) return false;
+  if (!lockdConfigured()) return false;
+  if (!PENDING_SYNC) return false;
+  if (SYNC_WAITING) return false;
+  return openLockdSyncPopup();
 }
 
 function saveLaptopSyncPanel() {
@@ -1036,16 +1137,21 @@ window.addEventListener("message", function (ev) {
   if (!d || d.source !== "lockd") return;
   /* A late result from a previous popup must not touch the current pending. */
   if (PENDING_SYNC && d.date !== PENDING_SYNC.date) return;
+  if (SYNC_TIMER) { clearTimeout(SYNC_TIMER); SYNC_TIMER = null; }
   SYNC_WAITING = false;
   if (d.status === "ok") {
     clearPendingLockdSync();
+    SYNC_STATE = "ok";
     SYNC_STATUS = "Logged " + d.date + " (" + d.type + ").";
   } else if (d.status === "stale") {
     clearPendingLockdSync();
+    SYNC_STATE = "error";
     SYNC_STATUS = "That date has expired - log today's session again.";
   } else if (d.status === "denied") {
+    SYNC_STATE = "error";
     SYNC_STATUS = "Laptop denied the sync - check the token and retry.";
   } else {
+    SYNC_STATE = "error";
     SYNC_STATUS = "Laptop said: " + d.status + " - tap SYNC to retry.";
   }
   render();
@@ -2325,7 +2431,12 @@ function renderOverview() {
      the completion screen. Mirrors the export/import row idiom. */
   html += '<div class="panel" style="margin-bottom:16px;">'+
     '<div class="dim" style="font-size:10px;letter-spacing:2px;margin-bottom:8px;">LAPTOP SYNC</div>'+
+    '<div style="font-size:13px;letter-spacing:1px;color:'+lockdSyncColour()+';margin-bottom:6px;">'+lockdSyncHeadline()+'</div>'+
     '<div class="dim" style="font-size:11px;margin-bottom:10px;">'+lockdStatusText()+'</div>'+
+    '<div class="row" style="margin-bottom:12px;"><div class="dim" style="font-size:10px;letter-spacing:1px;">AUTO-SYNC AFTER WORKOUT</div>'+
+      '<button onclick="toggleLockdAutoSync()" style="font-size:10px;letter-spacing:1px;color:'+(lockdAutoSyncEnabled()?t.accent:TEXT_DIM)+';display:flex;align-items:center;gap:5px;">'+
+      (lockdAutoSyncEnabled() ? icoCheck(t.accent) : '<span style="width:12px;height:12px;border-radius:3px;border:1px solid '+TEXT_DIM+';display:inline-block;"></span>')+
+      (lockdAutoSyncEnabled() ? "ON" : "OFF")+'</button></div>'+
     '<button class="smallbtn" onclick="syncToLaptop()" style="margin-bottom:14px;">SYNC TO LAPTOP</button>'+
     '<div style="margin-bottom:12px;"><label class="fieldlabel">LAPTOP URL</label><input type="url" id="lockdUrlInput" value="'+(laptopSync.url || "")+'" placeholder="http://192.168.x.x:8787" /></div>'+
     '<div style="margin-bottom:12px;"><label class="fieldlabel">TOKEN</label><input type="password" id="lockdTokenInput" value="'+(laptopSync.token || "")+'" placeholder="from lockd-config.json on the laptop" /></div>'+
@@ -2587,10 +2698,15 @@ function renderComplete() {
 
   html += '</div>';
 
-  html += '<div style="margin-top:18px;">'+
-    '<button class="hdr" onclick="syncToLaptop()" style="padding:14px 28px;border-radius:12px;background:rgba(255,255,255,0.06);color:'+t.accent+';font-size:13px;">SYNC TO LAPTOP</button>'+
-    '<div class="dim" style="font-size:10px;margin-top:8px;">'+lockdStatusText()+'</div>'+
+  /* LAPTOP SYNC - the workout is already logged; this is what the
+     laptop made of it. */
+  html += '<div class="panel" style="margin-top:18px;">'+
+    '<div class="dim" style="font-size:10px;letter-spacing:2px;margin-bottom:8px;">LAPTOP SYNC</div>'+
+    '<div style="font-size:14px;letter-spacing:1px;color:'+lockdSyncColour()+';margin-bottom:6px;">'+lockdSyncHeadline()+'</div>'+
+    '<div class="dim" style="font-size:10px;margin-bottom:12px;">'+lockdStatusText()+'</div>'+
+    '<button class="smallbtn" onclick="syncToLaptop()">SYNC TO LAPTOP</button>'+
   '</div>';
+
   html += '<button class="hdr" onclick="returnFromComplete()" style="margin-top:24px;padding:14px 28px;border-radius:12px;background:'+t.accent+';color:#02080a;font-size:13px;">RETURN</button>';
   html += '</div>';
   return html;

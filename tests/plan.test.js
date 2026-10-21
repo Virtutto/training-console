@@ -964,7 +964,7 @@ ok("index.html is ASCII-only (non-BOM)", offenders.length === 0, offenders.lengt
   ok("stale clears the pending too",
      /d\.status === "stale"[\s\S]{0,120}clearPendingLockdSync\(/.test(src));
   ok("no window opened when nothing is pending",
-     /if \(!PENDING_SYNC\)[\s\S]{0,120}return;/.test(src));
+     /if \(!PENDING_SYNC\)[\s\S]{0,120}return(\s+false)?;/.test(src));
 
   /* --- 9b. Task 8: SYNC button + LAPTOP SYNC panel -------------------
      Slices keep these non-vacuous: "syncToLaptop" already exists as a
@@ -985,6 +985,20 @@ ok("index.html is ASCII-only (non-BOM)", offenders.length === 0, offenders.lengt
      renderOverviewSrc.includes("saveLaptopSyncPanel()") &&
      /Storage\.set\("laptop-sync"/.test(saveCfgSrc));
   ok("panel has url input", /type\s*=\s*"url"/.test(renderOverviewSrc));
+}
+
+/* --- 9c. AUTO-SYNC: the workout syncs by itself -------------------- */
+{
+  ok("defines autoSyncToLaptop", /function\s+autoSyncToLaptop\s*\(/.test(src));
+  ok("defines setLockdAutoSync", /function\s+setLockdAutoSync\s*\(/.test(src));
+  ok("defines lockdSyncHeadline", /function\s+lockdSyncHeadline\s*\(/.test(src));
+  ok("logCompletion triggers the auto sync", /logCompletion[\s\S]{0,900}autoSyncToLaptop\(/.test(src));
+  ok("the auto sync is NOT deferred through a timer",
+     !/setTimeout\(\s*function\s*\(\)\s*\{\s*autoSyncToLaptop/.test(src));
+  const renderCompleteSrc = src.slice(src.indexOf("function renderComplete"), src.indexOf("function renderStats"));
+  ok("completion screen shows a sync headline", renderCompleteSrc.includes("lockdSyncHeadline()"));
+  ok("overview panel shows a sync headline",
+     src.slice(src.indexOf("function renderOverview"), src.indexOf("function renderComplete")).includes("lockdSyncHeadline()"));
 }
 
 /* --- summary ------------------------------------------------------- */

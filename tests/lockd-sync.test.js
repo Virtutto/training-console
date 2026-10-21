@@ -76,6 +76,8 @@ function loadApp(seedStore, openRecorder) {
      drive the popup handshake without a real browser. */
   const openCalls = [];
   const messageListeners = [];
+  /* timers are captured so a test can fire the "no reply" timeout by hand. */
+  const timers = [];
   const windowStub = {
     location: { reload() {} },
     performance: { now: () => Date.now() },
@@ -103,8 +105,8 @@ function loadApp(seedStore, openRecorder) {
     navigator: navigatorStub,
     window: windowStub,
     console,
-    setTimeout: () => 0,
-    clearTimeout: () => {},
+    setTimeout: (fn, ms) => { timers.push({ fn: fn, ms: ms, cleared: false }); return timers.length; },
+    clearTimeout: (id) => { const t = timers[id - 1]; if (t) t.cleared = true; },
     setInterval: () => 0,
     clearInterval: () => {},
     requestAnimationFrame: () => 0,
@@ -120,7 +122,7 @@ function loadApp(seedStore, openRecorder) {
 
   vm.createContext(sandbox);
   vm.runInContext(src, sandbox, { filename: "index-inline.js" });
-  return { ctx: sandbox, html, store, openCalls, messageListeners };
+  return { ctx: sandbox, html, store, openCalls, messageListeners, timers };
 }
 
 /* Drive every registered message listener as one window "message" event. */
@@ -175,7 +177,7 @@ function dispatchMessage(app, data) {
   ok("popup url carries type=boulder", /[?&]type=boulder/.test(u), u.replace(/token=[^&]*/, "token=<redacted>"));
   ok("popup url carries token=", /[?&]token=sekret/.test(u), "<url redacted>");
   ok("popup target name is lockdSync", app.openCalls.length && app.openCalls[0].name === "lockdSync");
-  ok("status shows Waiting...", app.ctx.lockdStatusText() === "Waiting...", app.ctx.lockdStatusText());
+  ok("status shows the sync in flight", app.ctx.lockdStatusText() === "Syncing to laptop...", app.ctx.lockdStatusText());
 
   /* token must not leak into any other string the app exposes */
   ok("token absent from lockdStatusText", app.ctx.lockdStatusText().indexOf("sekret") === -1);
@@ -322,6 +324,131 @@ function appWithPending(status, msgDate) {
   ok("panel save clears status and the app is configured",
      app.ctx.SYNC_STATUS === "" && app.ctx.SYNC_WAITING === false && app.ctx.lockdConfigured() === true,
      "status=" + app.ctx.SYNC_STATUS + " configured=" + app.ctx.lockdConfigured());
+}
+
+/* ============================================================
+   (h) AUTO-SYNC: finishing a workout syncs by ITSELF.
+   The popup must open SYNCHRONOUSLY inside logCompletion - only a
+   user-initiated window.open survives the popup blocker, and
+   logCompletion always runs inside the tap that ended the last set.
+   ============================================================ */
+const CFG = { "laptop-sync": JSON.stringify({ url: "http://192.168.1.10:8787", token: "sekret" }) };
+
+/* h1: the sync fires by itself when a workout is logged */
+{
+  const app = loadApp(Object.assign({}, CFG));
+  app.ctx.logCompletion("MON", "workout");
+  ok("logCompletion opens the sync popup with no tap on SYNC",
+     app.openCalls.length === 1, "opens=" + app.openCalls.length);
+  const u = app.openCalls.length ? app.openCalls[0].url : "";
+  ok("auto-sync url carries today's date",
+     u.indexOf("date=" + app.ctx.todayISO) > -1, u.replace(/token=[^&]*/, "token=<redacted>"));
+  ok("auto-sync url carries type=workout", /[?&]type=workout/.test(u), u.replace(/token=[^&]*/, "token=<redacted>"));
+  ok("the auto-sync popup reuses the lockdSync target",
+     app.openCalls.length === 1 && app.openCalls[0].name === "lockdSync");
+  ok("the finished session is queued as pending too",
+     app.ctx.PENDING_SYNC && app.ctx.PENDING_SYNC.date === app.ctx.todayISO,
+     JSON.stringify(app.ctx.PENDING_SYNC));
+  ok("the token stays out of the visible status",
+     app.ctx.lockdStatusText().indexOf("sekret") === -1, app.ctx.lockdStatusText());
+}
+
+/* h2: booting must never pop a window on its own */
+{
+  const app = loadApp({
+    "laptop-sync": JSON.stringify({ url: "http://192.168.1.10:8787", token: "sekret" }),
+    "lockd-pending-sync": JSON.stringify({ date: "2026-10-19", type: "workout", at: "x" })
+  });
+  ok("booting the app opens no popup", app.openCalls.length === 0, "opens=" + app.openCalls.length);
+}
+
+/* h3: no configuration -> no popup, no noise */
+{
+  const app = loadApp({});
+  app.ctx.logCompletion("MON", "workout");
+  ok("not configured -> no popup", app.openCalls.length === 0, "opens=" + app.openCalls.length);
+  ok("not configured -> nothing is queued",
+     app.ctx.PENDING_SYNC === null, JSON.stringify(app.ctx.PENDING_SYNC));
+  ok("not configured -> status stays quiet",
+     app.ctx.lockdStatusText() === "Not configured", app.ctx.lockdStatusText());
+}
+
+/* h4: the user can switch auto-sync off */
+{
+  const app = loadApp(Object.assign({}, CFG));
+  if (typeof app.ctx.setLockdAutoSync !== "function") {
+    ok("auto-sync can be switched off", false, "setLockdAutoSync is missing");
+  } else {
+    app.ctx.setLockdAutoSync(false);
+    app.ctx.logCompletion("MON", "workout");
+    ok("auto-sync off -> no popup", app.openCalls.length === 0, "opens=" + app.openCalls.length);
+    ok("auto-sync off -> the session is still queued for a manual sync",
+       app.ctx.PENDING_SYNC && app.ctx.PENDING_SYNC.date === app.ctx.todayISO,
+       JSON.stringify(app.ctx.PENDING_SYNC));
+    ok("auto-sync off persists to storage", app.store["lockd-auto-sync"] === "0",
+       String(app.store["lockd-auto-sync"]));
+    app.ctx.setLockdAutoSync(true);
+    app.ctx.logCompletion("TUE", "workout");
+    ok("auto-sync back on -> popup again", app.openCalls.length === 1, "opens=" + app.openCalls.length);
+    ok("auto-sync on persists to storage", app.store["lockd-auto-sync"] === "1",
+       String(app.store["lockd-auto-sync"]));
+  }
+}
+
+/* h5: a sync already in flight is not interrupted by a second popup */
+{
+  const app = loadApp(Object.assign({}, CFG));
+  app.ctx.logCompletion("MON", "workout");
+  app.ctx.logCompletion("TUE", "workout");
+  ok("a sync in flight is not double-poked", app.openCalls.length === 1, "opens=" + app.openCalls.length);
+}
+
+/* h6: a blocked popup leaves an actionable status */
+{
+  const app = loadApp(Object.assign({}, CFG), { returnValue: null });
+  app.ctx.logCompletion("MON", "workout");
+  ok("blocked auto-sync -> retry status",
+     app.ctx.lockdStatusText() === "Popup blocked - tap SYNC to retry.",
+     app.ctx.lockdStatusText());
+  ok("blocked auto-sync -> not waiting", app.ctx.SYNC_WAITING === false);
+}
+
+/* h7: the overview retries a sync that was blocked */
+{
+  const app = loadApp(Object.assign({}, CFG), { returnValue: null });
+  app.ctx.logCompletion("MON", "workout");
+  const before = app.openCalls.length;
+  app.ctx.returnFromComplete();
+  ok("returning to the overview retries the blocked sync",
+     app.openCalls.length === before + 1, "opens=" + app.openCalls.length + " before=" + before);
+}
+
+/* h8: no reply from the laptop -> the status says so instead of hanging */
+{
+  const app = loadApp(Object.assign({}, CFG));
+  app.ctx.logCompletion("MON", "workout");
+  app.timers.forEach(t => { if (!t.cleared) t.fn(); });
+  ok("no reply -> the sync stops waiting", app.ctx.SYNC_WAITING === false);
+  ok("no reply -> actionable status",
+     /no reply/i.test(app.ctx.lockdStatusText()), app.ctx.lockdStatusText());
+}
+
+/* h9: the completion screen tells the truth about the sync */
+{
+  const app = loadApp(Object.assign({}, CFG));
+  app.ctx.logCompletion("MON", "workout");
+  app.ctx.state.view = "complete";
+  const syncingHtml = app.ctx.renderComplete();
+  ok("completion screen shows the syncing state", /SYNCING TO LAPTOP/i.test(syncingHtml),
+     "headline missing from the completion screen");
+  ok("completion screen keeps a manual retry button",
+     syncingHtml.indexOf('onclick="syncToLaptop()"') > -1, "no manual sync button");
+  dispatchMessage(app, { source: "lockd", status: "ok", date: app.ctx.todayISO, type: "workout" });
+  const okHtml = app.ctx.renderComplete();
+  ok("completion screen shows the unlocked headline", /GAMES UNLOCKED/i.test(okHtml),
+     "headline missing from the completion screen");
+  ok("completion screen shows the logged date",
+     okHtml.indexOf(app.ctx.todayISO) > -1, "no date on the completion screen");
 }
 
 /* --- summary ------------------------------------------------------- */

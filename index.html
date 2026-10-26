@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -1032,7 +1032,12 @@ function returnFromComplete() {
     try {
       var cfg = JSON.parse(raw);
       if (cfg && typeof cfg === "object") {
-        laptopSync = { url: cfg.url || "", token: cfg.token || "" };
+        laptopSync = {
+          url: cfg.url || "",
+          token: cfg.token || "",
+          relayServer: cfg.relayServer || "",
+          relayTopic: cfg.relayTopic || ""
+        };
       }
     } catch (e) {}
   }
@@ -1049,6 +1054,89 @@ function lockdConfigured() {
   var url = (laptopSync.url || "").trim();
   var token = (laptopSync.token || "").trim();
   return /^https?:\/\//i.test(url) && token.length > 0;
+}
+
+/* RELAY (Oct 26 2026). Windows Firewall blocks inbound to the daemon, so the
+   laptop is not reachable on the LAN. Instead we publish ONE signed line to an
+   ntfy topic and the daemon polls that topic over outbound HTTPS. Line format:
+     lockd|<date>|<type>|<hex HMAC-SHA256(token, "lockd|date|type")>
+   The raw token never goes to the relay, and a replayed or forged line fails
+   the daemon's check, so the topic name being semi-public is tolerable. */
+function relayConfigured() {
+  var topic = (laptopSync.relayTopic || "").trim();
+  var token = (laptopSync.token || "").trim();
+  return topic.length > 0 && token.length > 0;
+}
+
+function relayServerUrl() {
+  var s = (laptopSync.relayServer || "").trim();
+  if (!s) s = "https://ntfy.sh";
+  if (!/^https?:\/\//i.test(s)) s = "https://" + s;
+  return s.replace(/\/+$/, "");
+}
+
+function relaySignature(date, type) {
+  var enc = new TextEncoder();
+  var payload = enc.encode("lockd|" + date + "|" + type);
+  return crypto.subtle.importKey("raw", enc.encode((laptopSync.token || "").trim()), { name: "HMAC", hash: "SHA-256" }, false, ["sign"])
+    .then(function (key) { return crypto.subtle.sign("HMAC", key, payload); })
+    .then(function (buf) {
+      var bytes = new Uint8Array(buf);
+      var hex = "";
+      for (var i = 0; i < bytes.length; i++) {
+        hex += ("0" + bytes[i].toString(16)).slice(-2);
+      }
+      return hex;
+    });
+}
+
+function relayBody(sync) {
+  return relaySignature(sync.date, sync.type).then(function (sig) {
+    return "lockd|" + sync.date + "|" + sync.type + "|" + sig;
+  });
+}
+
+/* Publish the signed line. Resolves when the relay has ACCEPTED it - which is
+   not the same as the laptop having applied it, and the UI says so. */
+function publishRelay(sync) {
+  return relayBody(sync).then(function (body) {
+    return fetch(relayServerUrl() + "/" + (laptopSync.relayTopic || "").trim(), {
+      method: "POST",
+      headers: { "Title": "lockd sync", "Tags": "lockd" },
+      body: body
+    });
+  }).then(function (res) {
+    if (!res || !res.ok) throw new Error("relay HTTP " + (res ? res.status : "no response"));
+    return true;
+  });
+}
+
+function startRelaySync() {
+  var sync = { date: PENDING_SYNC.date, type: PENDING_SYNC.type };
+  clearSyncToast();
+  SYNC_WAITING = true;
+  SYNC_STATE = "syncing";
+  SYNC_STATUS = "Sending to the relay...";
+  publishRelay(sync).then(function () {
+    SYNC_WAITING = false;
+    /* The message is queued, not applied - keep the wording honest. The daemon
+       picks it up within its poll interval, and the relay caches it if the
+       laptop is off. */
+    clearPendingLockdSync();
+    SYNC_STATE = "sent";
+    SYNC_STATUS = "Sent via relay - the laptop unlocks within seconds.";
+    LOCKD_LAST_SYNC = { date: sync.date, type: sync.type, at: new Date().toISOString() };
+    try { Storage.set("lockd-last-sync", JSON.stringify(LOCKD_LAST_SYNC)); } catch (e) {}
+    showSyncToast("SYNC SENT", "Relay queued - laptop picks it up", lockdSyncColour());
+    render();
+  }).catch(function (err) {
+    SYNC_WAITING = false;
+    SYNC_STATE = "error";
+    SYNC_STATUS = "Relay failed - " + (err && err.message ? err.message : "unknown") + ". Tap SYNC to retry.";
+    showSyncToast("SYNC FAILED", "Relay publish failed", lockdSyncColour());
+    render();
+  });
+  return true;
 }
 
 function lockdAutoSyncEnabled() {
@@ -1070,7 +1158,7 @@ function saveLockdConfig() {
 }
 
 function queueLockdSync(type) {
-  if (!lockdConfigured()) return;
+  if (!lockdConfigured() && !relayConfigured()) return;
   /* A stale status from an earlier tap must not outlive a fresh queue -
      but a sync that is already in flight keeps its status: its reply
      still has to be accepted. */
@@ -1093,6 +1181,15 @@ function normaliseLockdUrl(raw) {
   return u.replace(/\/+$/, "");
 }
 
+/* A relay server is always HTTPS in practice (ntfy.sh), so a bare host gets
+   https:// rather than the http:// the LAN URL defaults to. */
+function normaliseRelayServer(raw) {
+  var s = (raw || "").trim();
+  if (!s) return "";
+  if (!/^https?:\/\//i.test(s)) s = "https://" + s;
+  return s.replace(/\/+$/, "");
+}
+
 function lockdLastSyncLabel() {
   if (!LOCKD_LAST_SYNC) return "";
   var label = LOCKD_LAST_SYNC.date;
@@ -1109,6 +1206,10 @@ function lockdStatusText() {
   if (lockdConfigured()) {
     return LOCKD_LAST_SYNC ? "Connected - last sync " + lockdLastSyncLabel() : "In sync";
   }
+  /* Relay-only setup: no LAN URL needed while the firewall blocks inbound. */
+  if (relayConfigured()) {
+    return LOCKD_LAST_SYNC ? "Relay set - last sent " + lockdLastSyncLabel() : "Relay set - ready";
+  }
   /* A sync that landed is proof the laptop is reachable - a missing config
      must never be reported as "not connected". */
   if (LOCKD_LAST_SYNC) return "Config missing - last sync " + lockdLastSyncLabel();
@@ -1120,15 +1221,17 @@ function lockdSyncHeadline() {
   if (SYNC_STATE === "ok") return "GAMES UNLOCKED";
   if (SYNC_STATE === "syncing") return "SYNCING TO LAPTOP";
   if (SYNC_STATE === "error") return "SYNC FAILED";
+  if (SYNC_STATE === "sent") return "SYNC SENT";
   if (PENDING_SYNC) return "READY TO SYNC";
   if (lockdConfigured()) return lockdAutoSyncEnabled() ? "IN SYNC" : "AUTO-SYNC OFF";
+  if (relayConfigured()) return lockdAutoSyncEnabled() ? "RELAY READY" : "AUTO-SYNC OFF";
   if (LOCKD_LAST_SYNC) return "SYNC CONFIG MISSING";
   return "LAPTOP SYNC NOT SET UP";
 }
 
 function lockdSyncColour() {
   var t = theme();
-  if (SYNC_STATE === "ok" || SYNC_STATE === "syncing") return t.accent;
+  if (SYNC_STATE === "ok" || SYNC_STATE === "sent" || SYNC_STATE === "syncing") return t.accent;
   if (SYNC_STATE === "error") return "#ff7b86";
   return TEXT_DIM;
 }
@@ -1212,6 +1315,13 @@ function openLockdSyncPopup() {
 
 /* Manual sync (the SYNC button). */
 function syncToLaptop() {
+  /* Relay first: it is the only path that works while the LAN is firewalled.
+     The popup stays as the fallback for a reachable daemon. */
+  if (relayConfigured() && PENDING_SYNC && !SYNC_WAITING) {
+    startRelaySync();
+    render();
+    return;
+  }
   openLockdSyncPopup();
   render();
 }
@@ -1221,9 +1331,10 @@ function syncToLaptop() {
    is what makes the popup user-initiated (and therefore allowed). */
 function autoSyncToLaptop() {
   if (!lockdAutoSyncEnabled()) return false;
-  if (!lockdConfigured()) return false;
   if (!PENDING_SYNC) return false;
   if (SYNC_WAITING) return false;
+  if (relayConfigured()) return startRelaySync();
+  if (!lockdConfigured()) return false;
   return openLockdSyncPopup();
 }
 
@@ -1237,6 +1348,14 @@ function saveLaptopSyncPanel() {
   var token = tokenEl ? tokenEl.value.trim() : "";
   if (url) laptopSync.url = url;
   if (token) laptopSync.token = token;
+  /* Relay fields: trim, and an empty box leaves the stored value alone for the
+     same reason as the URL/token above. A scheme-less server gets https://. */
+  var topicEl = document.getElementById("lockdRelayTopicInput");
+  var serverEl = document.getElementById("lockdRelayServerInput");
+  var topic = topicEl ? topicEl.value.trim() : "";
+  var server = serverEl ? serverEl.value.trim() : "";
+  if (topic) laptopSync.relayTopic = topic;
+  if (server) laptopSync.relayServer = normaliseRelayServer(server);
   saveLockdConfig();
   SYNC_STATUS = "";
   SYNC_WAITING = false;
@@ -1259,7 +1378,9 @@ function renderLaptopSyncPanel() {
     '<button class="smallbtn" onclick="syncToLaptop()" style="margin-bottom:14px;">SYNC TO LAPTOP</button>'+
     '<div style="margin-bottom:12px;"><label class="fieldlabel">LAPTOP URL</label><input type="url" id="lockdUrlInput" value="'+(laptopSync.url || "")+'" placeholder="http://192.168.x.x:8787" /></div>'+
     '<div style="margin-bottom:12px;"><label class="fieldlabel">TOKEN</label><input type="password" id="lockdTokenInput" value="'+(laptopSync.token || "")+'" placeholder="from lockd-config.json on the laptop" /></div>'+
-    '<div class="dim" style="font-size:9px;margin-bottom:12px;">URL = the laptop LAN IP, port 8787. Token = from lockd-config.json on the laptop.</div>'+
+    '<div style="margin-bottom:12px;"><label class="fieldlabel">RELAY TOPIC</label><input type="text" id="lockdRelayTopicInput" value="'+(laptopSync.relayTopic || "")+'" placeholder="relay.topic from lockd-config.json" /></div>'+
+    '<div style="margin-bottom:12px;"><label class="fieldlabel">RELAY SERVER</label><input type="url" id="lockdRelayServerInput" value="'+(laptopSync.relayServer || "")+'" placeholder="https://ntfy.sh" /></div>'+
+    '<div class="dim" style="font-size:9px;margin-bottom:12px;">URL = the laptop LAN IP, port 8787. Token = from lockd-config.json on the laptop. Relay = the ntfy topic the laptop polls; with a relay set the sync works even when the LAN is blocked.</div>'+
     '<button class="smallbtn" onclick="saveLaptopSyncPanel()" style="background:'+t.accent+';color:#02080a;">SAVE</button>'+
   '</div>';
 }

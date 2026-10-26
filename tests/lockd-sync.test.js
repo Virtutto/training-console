@@ -31,7 +31,7 @@ function ok(name, cond, detail) {
 }
 
 /* --- browser stub sandbox so the real inline script can boot ----- */
-function loadApp(seedStore, openRecorder) {
+function loadApp(seedStore, openRecorder, fetchRecorder) {
   const html = fs.readFileSync(HTML_PATH, "utf8");
   const scripts = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]);
   if (scripts.length !== 1) throw new Error("expected exactly one inline script, found " + scripts.length);
@@ -76,6 +76,17 @@ function loadApp(seedStore, openRecorder) {
      drive the popup handshake without a real browser. */
   const openCalls = [];
   const messageListeners = [];
+  /* fetch is recorded, and driven by fetchRecorder: {status, mode:"throw"}.
+     The relay path is the only thing in the app that fetches, and it must be
+     testable without a network. */
+  const fetchCalls = [];
+  const fetchPlan = fetchRecorder || {};
+  function fetchStub(url, opts) {
+    fetchCalls.push({ url: url, opts: opts || {} });
+    if (fetchPlan.mode === "throw") return Promise.reject(new Error(fetchPlan.message || "network down"));
+    const status = fetchPlan.status === undefined ? 200 : fetchPlan.status;
+    return Promise.resolve({ ok: status >= 200 && status < 300, status: status });
+  }
   /* timers are captured so a test can fire the "no reply" timeout by hand. */
   const timers = [];
   const windowStub = {
@@ -105,6 +116,9 @@ function loadApp(seedStore, openRecorder) {
     navigator: navigatorStub,
     window: windowStub,
     console,
+    fetch: fetchStub,
+    crypto: crypto,
+    TextEncoder: TextEncoder,
     setTimeout: (fn, ms) => { timers.push({ fn: fn, ms: ms, cleared: false }); return timers.length; },
     clearTimeout: (id) => { const t = timers[id - 1]; if (t) t.cleared = true; },
     setInterval: () => 0,
@@ -122,7 +136,7 @@ function loadApp(seedStore, openRecorder) {
 
   vm.createContext(sandbox);
   vm.runInContext(src, sandbox, { filename: "index-inline.js" });
-  return { ctx: sandbox, html, store, openCalls, messageListeners, timers };
+  return { ctx: sandbox, html, store, openCalls, messageListeners, timers, fetchCalls };
 }
 
 /* Drive every registered message listener as one window "message" event. */
@@ -580,10 +594,114 @@ const CFG = { "laptop-sync": JSON.stringify({ url: "http://192.168.1.10:8787", t
   ok("DIAGNOSTICS carries the manual sync button", stats.indexOf("SYNC TO LAPTOP") > -1);
 }
 
-/* --- summary ------------------------------------------------------- */
-console.log("\n" + pass + " passed, " + failures.length + " failed");
-if (failures.length) {
-  console.log("failures:");
-  failures.forEach(f => console.log(" - " + f));
-  process.exit(1);
+/* ============================================================
+   (m) RELAY (Oct 26 2026)
+
+   Windows Firewall blocks inbound to the daemon, so the laptop is not
+   reachable on the LAN. The console therefore publishes ONE signed line to an
+   ntfy topic, and the daemon polls that topic over outbound HTTPS:
+       lockd|<date>|<type>|<hex HMAC-SHA256(token, "lockd|date|type")>
+   The pinned signature below was computed independently with python hmac AND
+   the PowerShell implementation, so all three agree.
+   ============================================================ */
+const RELAY_SIG = "2664d268f41a53478131735907bb51abab9174350582f9e36d0b6f93e1ef445e";
+const settle = () => new Promise(r => setTimeout(r, 30));
+
+async function runRelayTests() {
+  /* m1 - config + signature */
+  {
+    const app = loadApp({ "laptop-sync": JSON.stringify({ token: "test-token-123", relayTopic: "lockd-topic" }) });
+    ok("a topic plus a token counts as relay-configured", app.ctx.relayConfigured() === true);
+    ok("no topic means no relay", loadApp({ "laptop-sync": JSON.stringify({ token: "t" }) }).ctx.relayConfigured() === false);
+    const sig = await app.ctx.relaySignature("2026-10-26", "workout");
+    ok("relay signature matches the pinned vector", sig === RELAY_SIG, sig);
+    const body = await app.ctx.relayBody({ date: "2026-10-26", type: "workout" });
+    ok("relay body is the signed line", body === "lockd|2026-10-26|workout|" + RELAY_SIG, body);
+  }
+
+  /* m2 - publish shape */
+  {
+    const app = loadApp({ "laptop-sync": JSON.stringify({ token: "test-token-123", relayTopic: "lockd-topic", relayServer: "ntfy.sh" }) }, null, { status: 200 });
+    ok("a scheme-less relay server becomes https", app.ctx.relayServerUrl() === "https://ntfy.sh", app.ctx.relayServerUrl());
+    const body = await app.ctx.relayBody({ date: "2026-10-26", type: "workout" });
+    const res = await app.ctx.publishRelay({ date: "2026-10-26", type: "workout" });
+    ok("publish reports success", res === true);
+    ok("publish targets <server>/<topic>", app.fetchCalls.length === 1 && app.fetchCalls[0].url === "https://ntfy.sh/lockd-topic", JSON.stringify(app.fetchCalls.map(f => f.url)));
+    ok("publish is a POST", app.fetchCalls[0].opts.method === "POST");
+    ok("publish sends the signed line as the body", app.fetchCalls[0].opts.body === body);
+  }
+
+  /* m3 - the auto-sync path prefers the relay and never opens the popup */
+  {
+    const pending = { date: "2026-10-26", type: "workout", at: "2026-10-26T07:00:00.000Z" };
+    const app = loadApp({ "laptop-sync": JSON.stringify({ url: "http://192.168.1.10:8787", token: "test-token-123", relayTopic: "lockd-topic" }), "lockd-pending-sync": JSON.stringify(pending) }, null, { status: 200 });
+    const opened = app.ctx.autoSyncToLaptop();
+    ok("auto-sync with a relay starts", opened === true);
+    ok("auto-sync with a relay opens no LAN popup", app.openCalls.length === 0, JSON.stringify(app.openCalls.map(o => o.url)));
+    ok("auto-sync with a relay enters the syncing state", app.ctx.SYNC_STATE === "syncing");
+    await settle();
+    ok("a queued relay sync clears the pending", app.ctx.PENDING_SYNC === null, JSON.stringify(app.ctx.PENDING_SYNC));
+    ok("a queued relay sync reports SENT, not unlocked", app.ctx.SYNC_STATE === "sent", app.ctx.SYNC_STATE);
+    ok("the headline says SYNC SENT", app.ctx.lockdSyncHeadline() === "SYNC SENT", app.ctx.lockdSyncHeadline());
+    ok("the last-sync record is written", !!app.store["lockd-last-sync"] && JSON.parse(app.store["lockd-last-sync"]).date === "2026-10-26");
+    ok("the toast says SENT", !!app.ctx.state.syncToast && app.ctx.state.syncToast.headline === "SYNC SENT");
+  }
+
+  /* m4 - a failed publish keeps the pending so the tap can be retried */
+  {
+    const app = loadApp({ "laptop-sync": JSON.stringify({ token: "test-token-123", relayTopic: "lockd-topic" }), "lockd-pending-sync": JSON.stringify({ date: "2026-10-26", type: "workout" }) }, null, { mode: "throw", message: "network down" });
+    app.ctx.autoSyncToLaptop();
+    await settle();
+    ok("a failed publish keeps the pending sync", app.ctx.PENDING_SYNC !== null && app.ctx.PENDING_SYNC.date === "2026-10-26", JSON.stringify(app.ctx.PENDING_SYNC));
+    ok("a failed publish sets the error state", app.ctx.SYNC_STATE === "error", app.ctx.SYNC_STATE);
+    ok("the failure names the relay", String(app.ctx.SYNC_STATUS).indexOf("Relay failed") === 0, app.ctx.SYNC_STATUS);
+    ok("a failed publish writes no last-sync record", !app.store["lockd-last-sync"]);
+  }
+
+  /* m5 - a non-2xx answer is a failure, not a success */
+  {
+    const app = loadApp({ "laptop-sync": JSON.stringify({ token: "test-token-123", relayTopic: "lockd-topic" }), "lockd-pending-sync": JSON.stringify({ date: "2026-10-26", type: "workout" }) }, null, { status: 429 });
+    app.ctx.autoSyncToLaptop();
+    await settle();
+    ok("HTTP 429 from the relay is an error", app.ctx.SYNC_STATE === "error", app.ctx.SYNC_STATE);
+    ok("HTTP 429 keeps the pending sync", app.ctx.PENDING_SYNC !== null);
+  }
+
+  /* m6 - relay-only setup: no LAN URL needed at all */
+  {
+    const app = loadApp({ "laptop-sync": JSON.stringify({ token: "test-token-123", relayTopic: "lockd-topic" }) });
+    ok("a relay-only setup is not LAN-configured", app.ctx.lockdConfigured() === false);
+    ok("a relay-only setup has a headline", app.ctx.lockdSyncHeadline() === "RELAY READY", app.ctx.lockdSyncHeadline());
+    ok("relay-only status mentions the relay", app.ctx.lockdStatusText() === "Relay set - ready", app.ctx.lockdStatusText());
+    app.ctx.queueLockdSync("workout");
+    ok("a relay-only setup still queues a sync", app.ctx.PENDING_SYNC !== null, JSON.stringify(app.ctx.PENDING_SYNC));
+  }
+
+  /* m7 - the setup form carries the relay fields and saves them */
+  {
+    const app = loadApp({});
+    const stats = app.ctx.renderStats();
+    ok("DIAGNOSTICS carries the relay topic field", stats.indexOf("lockdRelayTopicInput") > -1);
+    ok("DIAGNOSTICS carries the relay server field", stats.indexOf("lockdRelayServerInput") > -1);
+    app.ctx.document.getElementById("lockdTokenInput").value = "test-token-123";
+    app.ctx.document.getElementById("lockdRelayTopicInput").value = " lockd-topic ";
+    app.ctx.document.getElementById("lockdRelayServerInput").value = "ntfy.sh";
+    app.ctx.saveLaptopSyncPanel();
+    ok("the relay topic is trimmed and saved", app.ctx.laptopSync.relayTopic === "lockd-topic", app.ctx.laptopSync.relayTopic);
+    ok("a scheme-less relay server is saved as https", app.ctx.laptopSync.relayServer === "https://ntfy.sh", app.ctx.laptopSync.relayServer);
+    const again = loadApp({ "laptop-sync": app.store["laptop-sync"] });
+    ok("the relay config survives a reload", again.ctx.laptopSync.relayTopic === "lockd-topic" && again.ctx.laptopSync.relayServer === "https://ntfy.sh");
+  }
 }
+
+runRelayTests().then(function () {
+  console.log("\n" + pass + " passed, " + failures.length + " failed");
+  if (failures.length) {
+    console.log("failures:");
+    failures.forEach(f => console.log(" - " + f));
+    process.exit(1);
+  }
+}).catch(function (e) {
+  console.log("FAIL - relay tests crashed: " + (e && e.stack ? e.stack : e));
+  process.exit(1);
+});

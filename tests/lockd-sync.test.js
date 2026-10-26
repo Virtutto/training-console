@@ -694,7 +694,79 @@ async function runRelayTests() {
   }
 }
 
-runRelayTests().then(function () {
+/* ============================================================
+   (n) MAIN-PAGE SYNC PILL (Oct 26 2026)
+
+   The relay hides the laptop, so the only thing the user must never be unsure
+   about is WHICH control publishes. One pill on the main screen, one meaning:
+   send today's completed session. No popup, no hidden state.
+   ============================================================ */
+async function runPillTests() {
+  const relayCfg = JSON.stringify({ token: "test-token-123", relayTopic: "lockd-topic" });
+
+  /* n1 - presence. The pill is ALWAYS there: an invisible control is the thing
+     that made the first phone attempt impossible to diagnose. */
+  {
+    const on = loadApp({ "laptop-sync": relayCfg });
+    ok("the main page has a sync pill when a relay is set", on.ctx.renderHeader().indexOf("mainSyncPill") > -1);
+    ok("a configured pill offers SYNC", on.ctx.mainSyncLabel() === "NO WORKOUT YET", on.ctx.mainSyncLabel());
+
+    const off = loadApp({ "laptop-sync": JSON.stringify({ url: "http://192.168.1.10:8787", token: "test-token-123" }) });
+    ok("the main page still has a pill without a relay", off.ctx.renderHeader().indexOf("mainSyncPill") > -1);
+    ok("an unconfigured pill says SET UP SYNC", off.ctx.mainSyncLabel() === "SET UP SYNC", off.ctx.mainSyncLabel());
+    off.ctx.mainSyncTap();
+    ok("an unconfigured pill tap opens DIAGNOSTICS", off.ctx.state.view === "stats", off.ctx.state.view);
+    ok("an unconfigured pill tap publishes nothing", off.fetchCalls.length === 0);
+  }
+
+  /* n2 - what it sends */
+  {
+    const today = loadApp({ "laptop-sync": relayCfg }).ctx.localISO(new Date());
+    const pendingApp = loadApp({ "laptop-sync": relayCfg, "lockd-pending-sync": JSON.stringify({ date: "2026-10-24", type: "boulder" }) });
+    ok("the pill sends the pending session when there is one", JSON.stringify(pendingApp.ctx.mainSyncTarget()) === JSON.stringify({ date: "2026-10-24", type: "boulder" }), JSON.stringify(pendingApp.ctx.mainSyncTarget()));
+
+    const loggedApp = loadApp({ "laptop-sync": relayCfg, "workout-history": JSON.stringify([{ date: today, day: 2, type: "workout", at: new Date().toISOString() }]) });
+    ok("the pill sends today's logged workout", JSON.stringify(loggedApp.ctx.mainSyncTarget()) === JSON.stringify({ date: today, type: "workout" }), JSON.stringify(loggedApp.ctx.mainSyncTarget()));
+
+    const emptyApp = loadApp({ "laptop-sync": relayCfg });
+    ok("the pill has nothing to send on an untrained day", emptyApp.ctx.mainSyncTarget() === null);
+    ok("the pill says there is nothing to send", emptyApp.ctx.mainSyncLabel() === "NO WORKOUT YET", emptyApp.ctx.mainSyncLabel());
+  }
+
+  /* n3 - the tap publishes today's session, in place, with no popup */
+  {
+    const today = loadApp({ "laptop-sync": relayCfg }).ctx.localISO(new Date());
+    const app = loadApp({ "laptop-sync": relayCfg, "workout-history": JSON.stringify([{ date: today, day: 2, type: "workout", at: new Date().toISOString() }]) }, null, { status: 200 });
+    const fired = app.ctx.mainSyncTap();
+    ok("the pill tap starts a publish", fired === true);
+    ok("the pill tap opens no LAN popup", app.openCalls.length === 0);
+    ok("the pill says SYNCING while it waits", app.ctx.mainSyncLabel() === "SYNCING", app.ctx.mainSyncLabel());
+    await settle();
+    const body = await app.ctx.relayBody({ date: today, type: "workout" });
+    ok("the pill published today's signed line", app.fetchCalls.length === 1 && app.fetchCalls[0].opts.body === body, app.fetchCalls.length ? app.fetchCalls[0].opts.body : "no fetch");
+    ok("the pill says SENT afterwards", app.ctx.mainSyncLabel() === "SENT", app.ctx.mainSyncLabel());
+  }
+
+  /* n4 - an untrained tap publishes nothing and explains itself */
+  {
+    const app = loadApp({ "laptop-sync": relayCfg }, null, { status: 200 });
+    const fired = app.ctx.mainSyncTap();
+    ok("an untrained pill tap publishes nothing", app.fetchCalls.length === 0);
+    ok("an untrained pill tap reports false", fired === false);
+    ok("an untrained pill tap writes no last-sync", !app.store["lockd-last-sync"]);
+    ok("an untrained pill tap explains itself", !!app.ctx.state.syncToast && app.ctx.state.syncToast.headline === "NOTHING TO SEND", JSON.stringify(app.ctx.state.syncToast));
+  }
+
+  /* n5 - a failed publish is visible on the pill itself */
+  {
+    const today = loadApp({ "laptop-sync": relayCfg }).ctx.localISO(new Date());
+    const app = loadApp({ "laptop-sync": relayCfg, "workout-history": JSON.stringify([{ date: today, day: 2, type: "workout", at: new Date().toISOString() }]) }, null, { mode: "throw" });
+    app.ctx.mainSyncTap();
+    await settle();
+    ok("a failed pill publish says RETRY SYNC", app.ctx.mainSyncLabel() === "RETRY SYNC", app.ctx.mainSyncLabel());
+  }
+}
+runRelayTests().then(function () { return runPillTests(); }).then(function () {
   console.log("\n" + pass + " passed, " + failures.length + " failed");
   if (failures.length) {
     console.log("failures:");

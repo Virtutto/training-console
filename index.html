@@ -1111,8 +1111,8 @@ function publishRelay(sync) {
   });
 }
 
-function startRelaySync() {
-  var sync = { date: PENDING_SYNC.date, type: PENDING_SYNC.type };
+function startRelaySync(target) {
+  var sync = target || { date: PENDING_SYNC.date, type: PENDING_SYNC.type };
   clearSyncToast();
   SYNC_WAITING = true;
   SYNC_STATE = "syncing";
@@ -1122,7 +1122,7 @@ function startRelaySync() {
     /* The message is queued, not applied - keep the wording honest. The daemon
        picks it up within its poll interval, and the relay caches it if the
        laptop is off. */
-    clearPendingLockdSync();
+    if (PENDING_SYNC && PENDING_SYNC.date === sync.date) clearPendingLockdSync();
     SYNC_STATE = "sent";
     SYNC_STATUS = "Sent via relay - the laptop unlocks within seconds.";
     LOCKD_LAST_SYNC = { date: sync.date, type: sync.type, at: new Date().toISOString() };
@@ -1137,6 +1137,76 @@ function startRelaySync() {
     render();
   });
   return true;
+}
+
+/* ============================================================
+   MAIN-PAGE SYNC PILL (Oct 26 2026)
+
+   The relay is blind: the laptop is not reachable, so there is no popup window
+   to prove that the right control was tapped. Hence one pill, always in the
+   header, exactly one meaning - publish TODAY'S completed session - and it
+   reports its own outcome in place. It only appears when a relay is set,
+   because without one this remains the LAN popup's job.
+   ============================================================ */
+function mainSyncTarget() {
+  if (PENDING_SYNC && PENDING_SYNC.date && PENDING_SYNC.type) {
+    return { date: PENDING_SYNC.date, type: PENDING_SYNC.type };
+  }
+  var today = localISO(new Date());
+  var types = ["workout", "boulder"];
+  for (var i = 0; i < types.length; i++) {
+    var hit = state.history.some(function (r) { return r.date === today && r.type === types[i]; });
+    if (hit) return { date: today, type: types[i] };
+  }
+  return null;
+}
+
+function mainSyncLabel() {
+  if (!relayConfigured()) return "SET UP SYNC";
+  if (SYNC_WAITING) return "SYNCING";
+  if (SYNC_STATE === "sent") return "SENT";
+  if (SYNC_STATE === "error") return "RETRY SYNC";
+  if (!mainSyncTarget()) return "NO WORKOUT YET";
+  return "SYNC";
+}
+
+function mainSyncPill() {
+  var t = theme();
+  var configured = relayConfigured();
+  var ready = configured && !!mainSyncTarget();
+  return '<button id="mainSyncPill" onclick="mainSyncTap()" style="'+
+    'background:'+(ready ? t.glow : 'rgba(12,22,32,0.55)')+';'+
+    'border:1px solid '+(ready ? t.accent : 'rgba(255,255,255,0.08)')+';'+
+    'color:'+(ready ? t.accent : TEXT_DIM)+';border-radius:999px;padding:9px 14px;'+
+    'font-family:inherit;font-size:10px;letter-spacing:1.5px;cursor:pointer;'+
+    'white-space:nowrap;'+(SYNC_WAITING ? 'opacity:0.7;' : '')+'">'+mainSyncLabel()+'</button>';
+}
+
+function mainSyncTap() {
+  if (SYNC_WAITING) return false;
+  /* Unconfigured is the one case with an obvious next step, so say it. */
+  if (!relayConfigured()) {
+    state.view = "stats";
+    render();
+    return false;
+  }
+  var target = mainSyncTarget();
+  if (!target) {
+    /* Say it out loud rather than publishing a date the laptop would reject -
+       or one it would accept with no session behind it. */
+    SYNC_STATUS = "Log a session first - nothing to send for today.";
+    showSyncToast("NOTHING TO SEND", "Log a session first", lockdSyncColour());
+    render();
+    return false;
+  }
+  if (relayConfigured()) {
+    startRelaySync(target);
+    render();
+    return true;
+  }
+  openLockdSyncPopup();
+  render();
+  return false;
 }
 
 function lockdAutoSyncEnabled() {
@@ -2567,6 +2637,7 @@ function renderHeader() {
     '<div><div class="hdr" style="font-size:12px;letter-spacing:3px;color:'+t.accent+';text-shadow:0 0 10px '+t.glow+'">TRAINING PROTOCOL</div>'+
     '<div class="dim" style="font-size:11px;margin-top:2px;">'+new Date().toDateString().toUpperCase()+'</div></div>'+
     '<div style="display:flex;gap:8px;position:relative;">'+
+      mainSyncPill()+
       statsBtn+
       '<button class="iconbtn" onclick="toggleThemeMenu(event)" style="background:'+(state.themePickerOpen?t.glow:'rgba(12,22,32,0.55)')+';border-color:'+(state.themePickerOpen?t.accent:'rgba(255,255,255,0.08)')+';color:'+t.accent+'">'+icoGear(t.accent)+'</button>'+
       (state.themePickerOpen ? renderSettingsMenu() : '')+

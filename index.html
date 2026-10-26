@@ -1209,6 +1209,46 @@ function mainSyncTap() {
   return false;
 }
 
+/* ============================================================
+   QR SETUP (Oct 26 2026)
+
+   Typing a 32-hex token on a phone keyboard is the likeliest remaining way to
+   get this wrong, so the laptop renders a QR of `#sync=<topic>:<token>` and the
+   phone camera opens the page with it. The fragment is stripped straight after
+   storing, so the token does not linger in the address bar or in history.
+   ============================================================ */
+function applySyncHash(hash) {
+  var raw = String(hash || "").replace(/^#/, "");
+  if (raw.indexOf("sync=") !== 0) return false;
+  var payload = raw.slice(5);
+  var cut = payload.indexOf(":");
+  if (cut < 1) return false;
+  var topic = "";
+  var token = "";
+  try {
+    topic = decodeURIComponent(payload.slice(0, cut)).trim();
+    token = decodeURIComponent(payload.slice(cut + 1)).trim();
+  } catch (e) {
+    return false;
+  }
+  if (!topic || !token) return false;
+  laptopSync.relayTopic = topic;
+  laptopSync.token = token;
+  if (!(laptopSync.relayServer || "").trim()) laptopSync.relayServer = "https://ntfy.sh";
+  saveLockdConfig();
+  return true;
+}
+
+function consumeSyncHash() {
+  if (typeof location === "undefined" || typeof location.hash !== "string") return false;
+  if (location.hash.indexOf("sync=") === -1) return false;
+  var applied = applySyncHash(location.hash);
+  try {
+    history.replaceState(null, "", location.pathname + location.search);
+  } catch (e) {}
+  return applied;
+}
+
 function lockdAutoSyncEnabled() {
   return AUTO_SYNC !== false;
 }
@@ -3425,6 +3465,10 @@ document.addEventListener("click", function(e){
   if (!e.target.closest(".theme-menu") && !e.target.closest('[onclick*="toggleThemeMenu"]')) state.themePickerOpen = false;
 });
 
+/* A scanned QR hands us the relay config before the first paint. */
+if (consumeSyncHash()) {
+  showSyncToast("SYNC SET UP", "Relay stored - tap SYNC", lockdSyncColour());
+}
 render();
 if (state.view === "active") runTimer();
 </script>

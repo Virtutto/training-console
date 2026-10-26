@@ -31,7 +31,7 @@ function ok(name, cond, detail) {
 }
 
 /* --- browser stub sandbox so the real inline script can boot ----- */
-function loadApp(seedStore, openRecorder, fetchRecorder) {
+function loadApp(seedStore, openRecorder, fetchRecorder, hash) {
   const html = fs.readFileSync(HTML_PATH, "utf8");
   const scripts = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]);
   if (scripts.length !== 1) throw new Error("expected exactly one inline script, found " + scripts.length);
@@ -80,6 +80,7 @@ function loadApp(seedStore, openRecorder, fetchRecorder) {
      The relay path is the only thing in the app that fetches, and it must be
      testable without a network. */
   const fetchCalls = [];
+  const replaceCalls = [];
   const fetchPlan = fetchRecorder || {};
   function fetchStub(url, opts) {
     fetchCalls.push({ url: url, opts: opts || {} });
@@ -89,8 +90,13 @@ function loadApp(seedStore, openRecorder, fetchRecorder) {
   }
   /* timers are captured so a test can fire the "no reply" timeout by hand. */
   const timers = [];
+  /* The app reads `location` and `history` as bare globals, so they belong on the
+     sandbox root as well as on window. */
+  const locationStub = { reload() {}, hash: hash || "", pathname: "/training-console/", search: "" };
+  const historyStub = { replaceState(a, b, url) { replaceCalls.push(url); } };
   const windowStub = {
-    location: { reload() {} },
+    location: locationStub,
+    history: historyStub,
     performance: { now: () => Date.now() },
     open(url, name, features) {
       openCalls.push({ url, name, features });
@@ -115,6 +121,8 @@ function loadApp(seedStore, openRecorder, fetchRecorder) {
     localStorage: localStorageStub,
     navigator: navigatorStub,
     window: windowStub,
+    location: locationStub,
+    history: historyStub,
     console,
     fetch: fetchStub,
     crypto: crypto,
@@ -136,7 +144,7 @@ function loadApp(seedStore, openRecorder, fetchRecorder) {
 
   vm.createContext(sandbox);
   vm.runInContext(src, sandbox, { filename: "index-inline.js" });
-  return { ctx: sandbox, html, store, openCalls, messageListeners, timers, fetchCalls };
+  return { ctx: sandbox, html, store, openCalls, messageListeners, timers, fetchCalls, replaceCalls };
 }
 
 /* Drive every registered message listener as one window "message" event. */
@@ -766,7 +774,45 @@ async function runPillTests() {
     ok("a failed pill publish says RETRY SYNC", app.ctx.mainSyncLabel() === "RETRY SYNC", app.ctx.mainSyncLabel());
   }
 }
-runRelayTests().then(function () { return runPillTests(); }).then(function () {
+/* ============================================================
+   (o) QR SETUP (Oct 26 2026)
+
+   Typing a 32-hex token on a phone keyboard is the likeliest remaining way
+   this fails. The laptop instead renders a QR of `#sync=<topic>:<token>`; the
+   phone camera opens the page with it and the app configures itself, then
+   strips the fragment so the token does not sit in the address bar.
+   ============================================================ */
+async function runQrTests() {
+  const payload = "#sync=lockd-topic:test-token-123";
+
+  /* o1 - a scan configures the relay with zero typing */
+  {
+    const app = loadApp({}, null, null, payload);
+    ok("a QR hash configures the relay topic", app.ctx.laptopSync.relayTopic === "lockd-topic", app.ctx.laptopSync.relayTopic);
+    ok("a QR hash configures the token", app.ctx.laptopSync.token === "test-token-123");
+    ok("a QR hash defaults the relay server", app.ctx.laptopSync.relayServer === "https://ntfy.sh", app.ctx.laptopSync.relayServer);
+    ok("a QR hash makes the relay usable", app.ctx.relayConfigured() === true);
+    ok("a QR hash is persisted", !!app.store["laptop-sync"] && JSON.parse(app.store["laptop-sync"]).relayTopic === "lockd-topic");
+    ok("a QR hash leaves the pill ready", app.ctx.mainSyncLabel() === "NO WORKOUT YET", app.ctx.mainSyncLabel());
+    ok("a QR hash is stripped from the address", app.replaceCalls.length === 1 && app.replaceCalls[0].indexOf("sync=") === -1, JSON.stringify(app.replaceCalls));
+  }
+
+  /* o2 - a configured server is not overwritten */
+  {
+    const app = loadApp({ "laptop-sync": JSON.stringify({ relayServer: "https://ntfy.example.com" }) }, null, null, payload);
+    ok("a QR hash keeps an existing relay server", app.ctx.laptopSync.relayServer === "https://ntfy.example.com", app.ctx.laptopSync.relayServer);
+  }
+
+  /* o3 - rubbish in the hash changes nothing but is still stripped */
+  {
+    ["#sync=", "#sync=only-a-topic", "#sync=:token", "#day=3"].forEach(function (bad) {
+      const app = loadApp({}, null, null, bad);
+      ok("bad hash leaves the relay unconfigured: " + bad, app.ctx.relayConfigured() === false, JSON.stringify(app.ctx.laptopSync));
+      ok("bad hash does not crash the pill: " + bad, app.ctx.mainSyncLabel() === "SET UP SYNC", app.ctx.mainSyncLabel());
+    });
+  }
+}
+runRelayTests().then(function () { return runPillTests(); }).then(function () { return runQrTests(); }).then(function () {
   console.log("\n" + pass + " passed, " + failures.length + " failed");
   if (failures.length) {
     console.log("failures:");

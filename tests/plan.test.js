@@ -1150,7 +1150,7 @@ ok("index.html is ASCII-only (non-BOM)", offenders.length === 0, offenders.lengt
 
 /* --- 9. laptop sync engine (lockd) -------------------------------- */
 {
-  ok("APP_VERSION bumped to v8.4", /var APP_VERSION = "v8\.4"/.test(src));
+  ok("APP_VERSION bumped to v8.5", /var APP_VERSION = "v8\.5"/.test(src));
   ok("defines lockdConfigured", /function\s+lockdConfigured\s*\(/.test(src));
   ok("defines queueLockdSync", /function\s+queueLockdSync\s*\(/.test(src));
   ok("defines syncToLaptop", /function\s+syncToLaptop\s*\(/.test(src));

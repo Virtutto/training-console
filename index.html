@@ -224,7 +224,7 @@ var PLAN = {
   }
 };
 var WINDUP_SECONDS = 5;
-var APP_VERSION = "v8.4";
+var APP_VERSION = "v8.5";
 
 /* ============================================================
    MUSCLE GROUP TAGS (exercise -> muscle groups + weight)
@@ -562,6 +562,12 @@ var state = {
   noteModal: null,
   pendingSet: null,
   phaseEndTime: null,
+  phaseSeconds: null,
+  overtimeStart: null,
+  overtimePausedAt: null,
+  overtimeSeconds: 0,
+  overtimeMeasured: null,
+  overtimeOver: null,
   notes: {},
   warmupSkip: false,
   sessionLog: [],
@@ -865,7 +871,7 @@ function sessionProgressPercent() {
   var frac = 0;
   var cur = currentStep();
   if (cur) {
-    if (state.phase === "logSet" || state.phase === "rest") {
+    if (state.phase === "logSet" || state.phase === "rest" || state.phase === "overtime") {
       frac = 1;
     } else if (state.phase === "work" && cur.type === "time" && cur.duration > 0) {
       var left = typeof state.secondsLeft === "number" ? state.secondsLeft : cur.duration;
@@ -880,11 +886,46 @@ function sessionProgressPercent() {
 
 function startTimedPhase(seconds) {
   state.secondsLeft = seconds;
+  state.phaseSeconds = seconds;
   state.phaseEndTime = Date.now() + seconds * 1000;
+}
+/* Overtime stopwatch: how long the hold has run past its target.
+   Timestamp-driven, so a backgrounded tab or a locked screen still
+   reports the honest number when it comes back. */
+function overtimeElapsedSeconds() {
+  if (state.phase !== "overtime" || !state.overtimeStart) return 0;
+  var until = (state.paused && state.overtimePausedAt) ? state.overtimePausedAt : Date.now();
+  var secs = Math.floor((until - state.overtimeStart) / 1000);
+  return secs > 0 ? secs : 0;
+}
+/* STOP: hand the measured total to the log screen as a pre-fill.
+   Nothing is recorded here - recordSetLog still needs a difficulty. */
+function stopOvertime() {
+  var cur = currentStep();
+  if (!cur || state.phase !== "overtime") return;
+  var over = overtimeElapsedSeconds();
+  var target = cur.type === "time" && cur.duration ? cur.duration : 0;
+  state.overtimeMeasured = target + over;
+  state.overtimeOver = over;
+  state.phase = "logSet";
+  state.overtimeStart = null;
+  state.overtimePausedAt = null;
+  state.overtimeSeconds = 0;
+  state.phaseEndTime = null;
+  render();
 }
 function runTimer() {
   clearTimeout(timerId);
   if (state.view !== "active" || state.paused || state.phase === "awaitingFinish" || state.phase === "logSet") return;
+  if (state.phase === "overtime") {
+    var over = overtimeElapsedSeconds();
+    if (over !== state.overtimeSeconds) {
+      state.overtimeSeconds = over;
+      render();
+    }
+    timerId = setTimeout(runTimer, 250);
+    return;
+  }
   /* Drift correction: recompute remaining from absolute wall-clock time */
   if (state.phaseEndTime) {
     var remaining = Math.ceil((state.phaseEndTime - Date.now()) / 1000);
@@ -922,7 +963,7 @@ function recordSetLog(difficulty) {
   } else if (cur.type === "time") {
     var input = document.getElementById("actualDurationInput");
     var v = input ? parseInt(input.value, 10) : NaN;
-    actualDuration = isNaN(v) ? cur.duration : Math.min(v, cur.duration);
+    actualDuration = isNaN(v) ? cur.duration : Math.max(0, v);
   }
   var entry = {
     date: localISO(new Date()), day: state.selectedDay,
@@ -933,6 +974,9 @@ function recordSetLog(difficulty) {
   state.setLogs = state.setLogs.concat([entry]);
   Storage.set("set-log", JSON.stringify(state.setLogs));
   state.sessionLog.push(entry);
+  /* The overtime pre-fill is spent - the next set starts clean. */
+  state.overtimeMeasured = null;
+  state.overtimeOver = null;
   checkForPR(cur.name, actualReps, difficulty);
   computeSuggestion(cur, difficulty, actualReps, actualDuration);
   goToRestOrNext();
@@ -982,7 +1026,23 @@ function advancePhase() {
     render(); runTimer();
     return;
   }
-  if (state.phase === "work") { triggerAlert(660,0.25,[150,80,150]); state.phase = "logSet"; state.phaseEndTime = null; render(); return; }
+  if (state.phase === "work") {
+    triggerAlert(660,0.25,[150,80,150]);
+    state.phaseEndTime = null;
+    /* A timed hold that runs past its target starts the overtime
+       stopwatch instead of jumping to the log screen. Rep sets are
+       finished by hand, so they never reach this branch. */
+    if (cur.type === "time" && cur.duration > 0) {
+      state.phase = "overtime";
+      state.overtimeStart = Date.now();
+      state.overtimePausedAt = null;
+      state.overtimeSeconds = 0;
+      state.secondsLeft = 0;
+      render(); runTimer();
+      return;
+    }
+    state.phase = "logSet"; render(); return;
+  }
   if (state.phase === "rest") { triggerAlert(1046,0.2,100); goToNextStep(); return; }
 }
 function finishReps() { triggerAlert(660,0.25,[150,80,150]); state.phase = "logSet"; render(); }
@@ -1011,11 +1071,24 @@ function goToNextStep() {
   render(); runTimer();
 }
 function toggleNextCue() { state.nextCueOpen = !state.nextCueOpen; render(); }
-function skipPhase() { state.secondsLeft = 0; state.phaseEndTime = null; render(); runTimer(); }
+function skipPhase() {
+  if (state.phase === "overtime") { stopOvertime(); return; }
+  state.secondsLeft = 0; state.phaseEndTime = null; render(); runTimer();
+}
 function togglePause() {
   state.paused = !state.paused;
   if (!state.paused && state.phaseEndTime && state.secondsLeft > 0) {
     state.phaseEndTime = Date.now() + state.secondsLeft * 1000;
+  }
+  if (state.phase === "overtime") {
+    if (state.paused) {
+      state.overtimePausedAt = Date.now();
+      state.overtimeSeconds = overtimeElapsedSeconds();
+    } else if (state.overtimePausedAt) {
+      /* Slide the start forward by the length of the pause. */
+      state.overtimeStart += Date.now() - state.overtimePausedAt;
+      state.overtimePausedAt = null;
+    }
   }
   render(); runTimer();
 }
@@ -1565,7 +1638,9 @@ function saveSessionState() {
     phase: state.phase,
     phaseEndTime: state.phaseEndTime,
     secondsLeft: state.secondsLeft,
+    phaseSeconds: state.phaseSeconds,
     paused: state.paused,
+    overtimeSeconds: state.overtimeSeconds,
     selectedDay: state.selectedDay,
     date: todayISO,
     sessionLog: state.sessionLog || [],
@@ -1590,7 +1665,16 @@ function restoreSession() {
     state.view = "active";
     state.sessionLog = data.sessionLog || [];
     state.sessionStartTime = data.sessionStartTime || null;
-    if (!data.paused && data.phaseEndTime) {
+    state.phaseSeconds = data.phaseSeconds || null;
+    if (data.phase === "overtime") {
+      /* The tab may have been shut for hours - resume the stopwatch
+         from where it was saved rather than from the wall clock. */
+      state.overtimeSeconds = data.overtimeSeconds || 0;
+      state.overtimeStart = Date.now() - state.overtimeSeconds * 1000;
+      state.overtimePausedAt = null;
+      state.secondsLeft = 0;
+      state.phaseEndTime = null;
+    } else if (!data.paused && data.phaseEndTime) {
       var remaining = Math.ceil((data.phaseEndTime - Date.now()) / 1000);
       state.secondsLeft = Math.max(0, remaining);
       state.phaseEndTime = data.phaseEndTime;
@@ -2526,7 +2610,7 @@ function renderCalibration() {
       '<div class="dim" style="font-size:10px;letter-spacing:2px;margin-top:4px;">'+(c.paused ? 'PAUSED' : 'SECONDS - HOLD')+'</div>';
     html += '<div class="panel" style="text-align:center;margin-bottom:16px;">'+
       '<div class="hdr" style="font-size:17px;color:#dff3fb;">'+ct.name+'</div></div>';
-    html += '<div style="display:flex;justify-content:center;margin-bottom:16px;">'+ringSVG(0, t.accent, t.glow, 240, 10, inner)+'</div>';
+    html += '<div style="display:flex;justify-content:center;margin-bottom:16px;">'+ringSVG(0, t.accent, t.glow, 240, 10, inner, true)+'</div>';
     html += '<div style="display:flex;gap:12px;">';
     html += '<button class="ctrlbtn" onclick="calibToggleClockPause()" style="flex:1;">'+(c.paused ? icoPlay("#dff3fb")+' RESUME' : icoPause("#dff3fb")+' PAUSE')+'</button>';
     html += '<button class="bigbtn" onclick="calibStopClock()" style="flex:2;background:'+t.accent+';color:#02080a;box-shadow:0 0 20px '+t.glow+';padding:16px;">'+icoCheck("#02080a")+' STOP - HOLD OVER</button>';
@@ -2556,7 +2640,7 @@ function renderCalibration() {
     progress = Math.min(Math.max(progress, 0), 1);
     var restInner = '<div class="hdr" style="font-size:56px;color:#7fd88a;text-shadow:0 0 20px rgba(127,216,138,0.35);">'+c.secondsLeft+'</div>'+
       '<div class="dim" style="font-size:10px;letter-spacing:2px;margin-top:4px;">REST BEFORE NEXT TEST</div>';
-    html += '<div style="display:flex;justify-content:center;margin-bottom:16px;">'+ringSVG(progress, "#7fd88a", "rgba(127,216,138,0.35)", 240, 10, restInner)+'</div>';
+    html += '<div style="display:flex;justify-content:center;margin-bottom:16px;">'+ringSVG(progress, "#7fd88a", "rgba(127,216,138,0.35)", 240, 10, restInner, true)+'</div>';
     if (c.showWarn) {
       html += '<div class="panel" style="margin-bottom:14px;border-left:3px solid #ff9500;background:rgba(255,149,0,0.08);">'+
         '<div style="font-size:12px;color:#ff9500;line-height:1.55;">Fatigue corrupts the next numbers. Take the full rest - walk it off, shake the arms out.</div></div>';
@@ -2670,7 +2754,11 @@ function computeStats() {
    ============================================================ */
 function theme() { return THEMES[state.themeKey]; }
 
-function ringSVG(progress, colorAccent, glow, size, stroke, innerHTML) {
+/* progress 0..1. Pass animate=true only for rings that are redrawn
+   rarely (windup, rest): they get a 1s ease. The active-work ring is
+   driven frame by frame by applyRingFrame(), so it must NOT carry a
+   transition or every frame would lag a second behind. */
+function ringSVG(progress, colorAccent, glow, size, stroke, innerHTML, animate) {
   size = size || 240; stroke = stroke || 10;
   var r = (size - stroke) / 2;
   var c = 2 * Math.PI * r;
@@ -2688,10 +2776,56 @@ function ringSVG(progress, colorAccent, glow, size, stroke, innerHTML) {
     '<svg width="'+size+'" height="'+size+'" style="transform:rotate(-90deg)">'+
       '<circle cx="'+size/2+'" cy="'+size/2+'" r="'+r+'" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="'+stroke+'"/>'+
       ticks+
-      '<circle cx="'+size/2+'" cy="'+size/2+'" r="'+r+'" fill="none" stroke="'+colorAccent+'" stroke-width="'+stroke+'" stroke-dasharray="'+c+'" stroke-dashoffset="'+offset+'" stroke-linecap="round" style="filter:drop-shadow(0 0 8px '+glow+');transition:stroke-dashoffset 1s linear"/>'+
+      '<circle id="ringArc" cx="'+size/2+'" cy="'+size/2+'" r="'+r+'" fill="none" stroke="'+colorAccent+'" stroke-width="'+stroke+'" stroke-dasharray="'+c+'" stroke-dashoffset="'+offset+'" stroke-linecap="round" style="filter:drop-shadow(0 0 8px '+glow+')'+(animate?';transition:stroke-dashoffset 1s linear':'')+'"/>'+
     '</svg>'+
     '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;">'+innerHTML+'</div>'+
   '</div>';
+}
+/* ---- frame-accurate ring (active work / rest countdown) ---------- */
+var ringRafId = null;
+function ringProgressAt(nowMs) {
+  if (state.phase === "overtime") return 1;
+  var total = state.phaseSeconds || 0;
+  if (!total || !state.phaseEndTime) return state.secondsLeft === 0 && total ? 1 : 0;
+  var left = (state.phaseEndTime - nowMs) / 1000;
+  if (left < 0) left = 0;
+  if (left > total) left = total;
+  return (total - left) / total;
+}
+function applyRingFrame() {
+  var arc = document.getElementById("ringArc");
+  if (!arc) return;
+  var r = parseFloat(arc.getAttribute("r"));
+  if (isNaN(r) || r <= 0) return;
+  var total = state.phaseSeconds || 0;
+  /* Paused: the clock is not advanced by the browser, so read the
+     frozen remainder instead of the timestamp. */
+  var progress = state.paused
+    ? (total > 0 ? (total - state.secondsLeft) / total : 0)
+    : ringProgressAt(Date.now());
+  arc.setAttribute("stroke-dashoffset", String(2 * Math.PI * r * (1 - progress)));
+
+  var num = document.getElementById("ringNum");
+  if (!num) return;
+  if (state.phase === "overtime") { num.textContent = "+" + overtimeElapsedSeconds(); return; }
+  if (!state.phaseEndTime) return;
+  var left = state.paused ? state.secondsLeft : Math.ceil((state.phaseEndTime - Date.now()) / 1000);
+  if (left < 0) left = 0;
+  num.textContent = String(left);
+}
+function startRingAnimation() {
+  if (typeof requestAnimationFrame !== "function") return;
+  stopRingAnimation();
+  function frame() {
+    applyRingFrame();
+    if (state.view !== "active") { ringRafId = null; return; }
+    ringRafId = requestAnimationFrame(frame);
+  }
+  ringRafId = requestAnimationFrame(frame);
+}
+function stopRingAnimation() {
+  if (ringRafId !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(ringRafId);
+  ringRafId = null;
 }
 
 function renderHeader() {
@@ -2869,12 +3003,12 @@ function renderActive() {
   var cur = currentStep();
   if (!cur) return '';
   var total = state.queue.length;
-  var label = state.phase==="windup" ? "GET READY" : state.phase==="work" ? (cur.type==="time"?"HOLD / GO":"WORKING") : state.phase==="rest" ? "REST" : "YOUR CALL";
+  var label = state.phase==="windup" ? "GET READY" : state.phase==="work" ? (cur.type==="time"?"HOLD / GO":"WORKING") : state.phase==="rest" ? "REST" : state.phase==="overtime" ? "OVERTIME" : "YOUR CALL";
   var ringMax = state.phase==="windup" ? WINDUP_SECONDS : state.phase==="work" ? cur.duration : state.phase==="rest" ? cur.restAfter : 1;
-  var progress = (state.phase==="awaitingFinish" || state.phase==="logSet") ? 1 : (ringMax>0 ? 1-(state.secondsLeft/ringMax) : 1);
+  var progress = (state.phase==="awaitingFinish" || state.phase==="logSet" || state.phase==="overtime") ? 1 : (ringMax>0 ? 1-(state.secondsLeft/ringMax) : 1);
   progress = Math.min(Math.max(progress,0),1);
-  var ringAccent = state.phase==="rest" ? "#7fd88a" : t.accent;
-  var ringGlow = state.phase==="rest" ? "rgba(127,216,138,0.35)" : t.glow;
+  var ringAccent = state.phase==="rest" ? "#7fd88a" : state.phase==="overtime" ? "#ffb547" : t.accent;
+  var ringGlow = state.phase==="rest" ? "rgba(127,216,138,0.35)" : state.phase==="overtime" ? "rgba(255,181,71,0.35)" : t.glow;
 
   var inner;
   if (state.phase === "awaitingFinish") {
@@ -2882,8 +3016,11 @@ function renderActive() {
       '<div class="hdr" style="font-size:14px;color:'+t.accent+';">TAP FINISH</div>';
   } else if (state.phase === "logSet") {
     inner = '<div class="dim" style="font-size:11px;letter-spacing:1px;">LOG THIS SET</div>';
+  } else if (state.phase === "overtime") {
+    inner = '<div class="hdr" id="ringNum" style="font-size:56px;color:#ffb547;text-shadow:0 0 20px rgba(255,181,71,0.35);">+'+state.overtimeSeconds+'</div>'+
+      '<div style="font-size:10px;letter-spacing:2px;margin-top:4px;color:#ffb547;">OVERTIME</div>';
   } else {
-    inner = '<div class="hdr" style="font-size:56px;color:'+ringAccent+';text-shadow:0 0 20px '+ringGlow+';">'+state.secondsLeft+'</div>'+
+    inner = '<div class="hdr" id="ringNum" style="font-size:56px;color:'+ringAccent+';text-shadow:0 0 20px '+ringGlow+';">'+state.secondsLeft+'</div>'+
       '<div class="dim" style="font-size:10px;letter-spacing:2px;margin-top:4px;">'+label+'</div>';
   }
 
@@ -2975,9 +3112,13 @@ function renderActive() {
       html += '<label class="fieldlabel">ACTUAL REPS DONE <span style="opacity:0.6;">(target: '+cur.repsLabel+(sug && sug.suggestedReps ? ' | suggested: '+sug.suggestedReps : '')+')</span></label>'+
         '<input type="number" id="actualRepsInput" min="0" style="margin-bottom:14px;" placeholder="e.g. 7" value="'+sugVal+'" />';
     } else if (cur.type === "time") {
-      var sugDur = sug && sug.suggestedDuration ? sug.suggestedDuration : cur.duration;
-      html += '<label class="fieldlabel">ACTUAL HOLD TIME <span style="opacity:0.6;">(target: '+cur.duration+'s'+(sug && sug.suggestedDuration && sug.suggestedDuration!==cur.duration ? ' | suggested: '+sug.suggestedDuration+'s' : '')+')</span></label>'+
-        '<input type="number" id="actualDurationInput" min="0" max="'+(cur.duration+10)+'" style="margin-bottom:14px;" placeholder="e.g. '+cur.duration+'" value="'+sugDur+'" />';
+      /* An overtime stopwatch hands over the measured total as a
+         pre-fill. Editable - trust the body, not the clock. */
+      var sugDur = state.overtimeMeasured != null ? state.overtimeMeasured
+        : (sug && sug.suggestedDuration ? sug.suggestedDuration : cur.duration);
+      var overNote = state.overtimeOver ? ' | <span style="color:#ffb547;">'+cur.duration+'s + '+state.overtimeOver+'s OVER</span>' : '';
+      html += '<label class="fieldlabel">ACTUAL HOLD TIME <span style="opacity:0.6;">(target: '+cur.duration+'s'+(sug && sug.suggestedDuration && sug.suggestedDuration!==cur.duration ? ' | suggested: '+sug.suggestedDuration+'s' : '')+overNote+')</span></label>'+
+        '<input type="number" id="actualDurationInput" min="0" style="margin-bottom:14px;" placeholder="e.g. '+cur.duration+'" value="'+sugDur+'" />';
     }
     html += '<label class="fieldlabel">HOW DID IT FEEL?</label>';
     html += '<div style="display:flex;gap:8px;">'+
@@ -3000,6 +3141,9 @@ function renderActive() {
     html += '<button class="bigbtn" onclick="finishReps()" style="background:'+t.accent+';color:#02080a;box-shadow:0 0 20px '+t.glow+';padding:16px;">'+icoCheck("#02080a")+' FINISH SET</button>';
   } else if (state.phase === "logSet") {
     /* controls replaced by the log panel above */
+  } else if (state.phase === "overtime") {
+    html += '<button class="ctrlbtn" onclick="togglePause()">'+(state.paused?icoPlay("#dff3fb"):icoPause("#dff3fb"))+' '+(state.paused?"RESUME":"PAUSE")+'</button>';
+    html += '<button class="ctrlbtn" onclick="stopOvertime()" style="background:rgba(255,181,71,0.14);border-color:rgba(255,181,71,0.5);color:#ffb547;">'+icoCheck("#ffb547")+' STOP</button>';
   } else {
     html += '<button class="ctrlbtn" onclick="togglePause()">'+(state.paused?icoPlay("#dff3fb"):icoPause("#dff3fb"))+' '+(state.paused?"RESUME":"PAUSE")+'</button>';
     html += '<button class="ctrlbtn" onclick="skipPhase()">'+icoSkip("#dff3fb")+' SKIP</button>';
@@ -3470,6 +3614,9 @@ function render() {
   document.getElementById("app").innerHTML = html;
   saveSessionState();
   saveCalibState();
+  /* The active ring is driven per frame, not per render. */
+  if (state.view === "active") startRingAnimation();
+  else stopRingAnimation();
   /* Kick the calibration tick ASYNCHRONOUSLY: calling runCalibTimer()
      synchronously from here would recurse render -> timer -> render. */
   if (state.view === "calibration") {

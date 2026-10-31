@@ -170,6 +170,10 @@ var PLAN = {
       Object.assign({name:"Chest-to-wall handstand holds", cal:"handstand", cue:"Chest and toes to the wall, push tall, squeeze glutes, ribs down. Stop at the first form break.", sets:3, rest:90}, T(8)),
       Object.assign({name:"Pistol squat (assisted)", cal:"pistol", cue:"Hold the box, sit back and down on one leg, heel flat, knee tracks over the toe. Progress by lowering the box, not by adding reps.", sets:4, rest:90}, R("3-5 / leg")),
       Object.assign({name:"Bulgarian split squats (feet elevated)", cal:"bulgarian", cue:"Rear foot on the box, front shin vertical, drop straight down.", sets:3, rest:75}, R("8-9 / leg")),
+      /* v8.4 (Oct 30 2026): leg day was quads (21), glutes (14), hamstrings (3)
+         and calves ZERO. One calf movement, step/box edge only, so it stays
+         legal on a no-bar/no-ring/no-band day. Progress by slowing the lower. */
+      Object.assign({name:"Single-leg calf raises (off a step)", cue:"Ball of the foot on the step edge, heel drops below it for a full stretch. Rise onto the big toe, 2s pause at the top. Progress by slowing the lower, not by adding reps.", sets:3, rest:60}, R("12-15 / leg")),
       Object.assign({name:"One-leg hollow body hold", cal:"hollow", cue:"One leg extended and low, the other tucked - switch legs every set. Low back flat, ribs down, hips off the floor.", sets:3, rest:60}, T(20))
     ],
     cooldown: [
@@ -220,7 +224,7 @@ var PLAN = {
   }
 };
 var WINDUP_SECONDS = 5;
-var APP_VERSION = "v8.3";
+var APP_VERSION = "v8.4";
 
 /* ============================================================
    MUSCLE GROUP TAGS (exercise -> muscle groups + weight)
@@ -243,11 +247,12 @@ var MUSCLE_TAGS = {
   "One-leg hollow body hold":       { core: 3 },
   "Hollow hold (light)":            { core: 1 },
   "Pistol squat (assisted)":          { quads: 3, glutes: 2, core: 1 },
-  "Bulgarian split squats (feet elevated)": { quads: 3, glutes: 2, hamstrings: 1 }
+  "Bulgarian split squats (feet elevated)": { quads: 3, glutes: 2, hamstrings: 1 },
+  "Single-leg calf raises (off a step)": { calves: 3 }
 };
-var MUSCLE_GROUPS = ["chest","shoulders","triceps","biceps","lats","rear_delts","core","quads","hamstrings","glutes","forearms","traps"];
-var MUSCLE_LABELS = { chest:"CHEST", shoulders:"SHOULDERS", triceps:"TRICEPS", biceps:"BICEPS", lats:"LATS", rear_delts:"REAR DELTS", core:"CORE", quads:"QUADS", hamstrings:"HAMSTRINGS", glutes:"GLUTES", forearms:"FOREARMS", traps:"TRAPS" };
-var MUSCLE_COLORS = { chest:"#ff4d5e", shoulders:"#ff9500", triceps:"#ffd60a", biceps:"#39ff88", lats:"#00e5ff", rear_delts:"#b48cff", core:"#ff7b86", quads:"#7fd88a", hamstrings:"#ffb547", glutes:"#ff6b9d", forearms:"#cde3ec", traps:"#8da4b0" };
+var MUSCLE_GROUPS = ["chest","shoulders","triceps","biceps","lats","rear_delts","core","quads","hamstrings","glutes","forearms","traps","calves"];
+var MUSCLE_LABELS = { chest:"CHEST", shoulders:"SHOULDERS", triceps:"TRICEPS", biceps:"BICEPS", lats:"LATS", rear_delts:"REAR DELTS", core:"CORE", quads:"QUADS", hamstrings:"HAMSTRINGS", glutes:"GLUTES", forearms:"FOREARMS", traps:"TRAPS", calves:"CALVES" };
+var MUSCLE_COLORS = { chest:"#ff4d5e", shoulders:"#ff9500", triceps:"#ffd60a", biceps:"#39ff88", lats:"#00e5ff", rear_delts:"#b48cff", core:"#ff7b86", quads:"#7fd88a", hamstrings:"#ffb547", glutes:"#ff6b9d", forearms:"#cde3ec", traps:"#8da4b0", calves:"#b5e853" };
 
 /* ============================================================
    PER-EXERCISE OVERRIDES (persist forever until edited/reset)
@@ -848,9 +853,29 @@ function toggleBoulder() {
   render();
 }
 function currentStep() { return state.queue[state.stepIdx]; }
+/* Progress through the session: completed steps PLUS the fraction of the
+   step in hand. A timed hold counts its elapsed seconds; a set counts the
+   moment it is logged; a rep set counts only after FINISH SET.
+   The old stepIdx/total version read 0% for the whole first set, only moved
+   when a set was logged, and could never reach 100% (the final set of a
+   20-set day read 95%). */
 function sessionProgressPercent() {
-  if (!state.queue.length) return 0;
-  return Math.round((state.stepIdx / state.queue.length) * 100);
+  var total = state.queue.length;
+  if (!total) return 0;
+  var frac = 0;
+  var cur = currentStep();
+  if (cur) {
+    if (state.phase === "logSet" || state.phase === "rest") {
+      frac = 1;
+    } else if (state.phase === "work" && cur.type === "time" && cur.duration > 0) {
+      var left = typeof state.secondsLeft === "number" ? state.secondsLeft : cur.duration;
+      frac = (cur.duration - left) / cur.duration;
+      if (!(frac > 0)) frac = 0;   /* also catches NaN */
+      if (frac > 1) frac = 1;
+    }
+  }
+  var pct = Math.round(((state.stepIdx + frac) / total) * 100);
+  return Math.max(0, Math.min(100, pct));
 }
 
 function startTimedPhase(seconds) {
@@ -3362,7 +3387,8 @@ function renderStats() {
       ["shoulders", "lats", "rear_delts"],
       ["chest", "core", "traps"],
       ["biceps", "quads", "triceps"],
-      ["glutes", "hamstrings", "forearms"]
+      ["glutes", "hamstrings", "forearms"],
+      ["calves"]
     ];
     bodyLayout.forEach(function(row){
       row.forEach(function(mg){
@@ -3371,7 +3397,8 @@ function renderStats() {
         var baseColor = MUSCLE_COLORS[mg] || "#fff";
         var bgColor = intensity > 0 ? baseColor : "rgba(255,255,255,0.04)";
         var opacity = intensity > 0 ? (0.2 + intensity * 0.6) : 1;
-        html += '<div style="padding:10px 6px;border-radius:8px;background:'+bgColor+';opacity:'+opacity+';text-align:center;border:1px solid '+(intensity > 0 ? baseColor : "rgba(255,255,255,0.06)")+';">';
+        var span = row.length === 1 ? 'grid-column:1 / -1;' : '';
+        html += '<div style="padding:10px 6px;border-radius:8px;background:'+bgColor+';opacity:'+opacity+';text-align:center;border:1px solid '+(intensity > 0 ? baseColor : "rgba(255,255,255,0.06)")+';'+span+'">';
         html += '<div style="font-size:9px;letter-spacing:1px;color:'+(intensity > 0 ? "#02080a" : TEXT_DIM)+';font-weight:bold;">'+MUSCLE_LABELS[mg]+'</div>';
         html += '<div style="font-size:14px;font-weight:900;color:'+(intensity > 0 ? "#02080a" : "#dff3fb")+';margin-top:2px;">'+vol+'</div>';
         html += '</div>';

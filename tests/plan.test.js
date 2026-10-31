@@ -19,7 +19,7 @@ const SW_PATH = path.join(__dirname, "..", "sw.js");
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MODES = ["session", "boulder", "rest"];
-const MUSCLE_GROUPS_LIST = ["chest", "shoulders", "triceps", "biceps", "lats", "rear_delts", "core", "quads", "hamstrings", "glutes", "forearms", "traps"];
+const MUSCLE_GROUPS_LIST = ["chest", "shoulders", "triceps", "biceps", "lats", "rear_delts", "core", "quads", "hamstrings", "glutes", "forearms", "traps", "calves"];
 
 let pass = 0;
 const failures = [];
@@ -467,6 +467,70 @@ if (PLAN) {
   const pistols = calFind("Pistol squat (assisted)");
   ok("pistol squat appears on 2 days (Thursday primary + Monday secondary)", pistols.length === 2,
     pistols.map(p => p.day + " x" + p.ex.sets).join(", "));
+
+  /* --- 6e2. calf work on leg day (v8.4, Oct 30 2026) ----------------- */
+  /* Thursday trained quads (21), glutes (14) and a little hamstring (3)
+     and never touched the calves (0). Adam's ask: hit the calves on leg
+     day. One movement, 3 sets, step or box edge only - legal on a
+     no-bar/no-ring/no-band day. */
+  const CALF_NAME = "Single-leg calf raises (off a step)";
+  const calfHits = calFind(CALF_NAME);
+  ok("calf raises exist in the plan", calfHits.length === 1, "n=" + calfHits.length);
+  if (calfHits.length) {
+    const c = calfHits[0];
+    ok("calf raises are a MAIN item on Thursday", c.day === "Thursday" && c.sec === "main",
+      c.day + "." + c.sec);
+    ok("calf raises run 3 sets of 12-15 per leg",
+      c.ex.type === "reps" && c.ex.sets === 3 && c.ex.label === "12-15 / leg",
+      c.ex.type + " " + c.ex.sets + "x" + c.ex.label);
+    ok("calf raises rest 60s", c.ex.rest === 60, String(c.ex.rest));
+    ok("calf raises carry a form cue", typeof c.ex.cue === "string" && c.ex.cue.length > 20);
+  }
+  const thuMain = (PLAN.Thursday.main || []).map(function (e) { return e.name; });
+  ok("calf raises sit after the Bulgarian split squat and before the core finisher",
+    thuMain.indexOf(CALF_NAME) > thuMain.indexOf("Bulgarian split squats (feet elevated)") &&
+    thuMain.indexOf(CALF_NAME) < thuMain.indexOf("One-leg hollow body hold"),
+    thuMain.join(" > "));
+  let CTAGS = null;
+  try {
+    const ts = {};
+    vm.createContext(ts);
+    vm.runInContext(src.slice(src.indexOf("var MUSCLE_TAGS"), src.indexOf("var MUSCLE_GROUPS")), ts, { filename: "muscle-tags.js" });
+    CTAGS = ts.MUSCLE_TAGS;
+  } catch (e) { CTAGS = null; }
+  ok("MUSCLE_TAGS block evaluates for the calf assertion", CTAGS !== null);
+  const calfTag = CTAGS ? CTAGS[CALF_NAME] : null;
+  ok("calf raises are tagged calves", !!calfTag && calfTag.calves > 0, JSON.stringify(calfTag));
+  ok("Thursday calf volume is no longer zero", !!calfTag && (calfTag.calves * 3) > 0);
+
+  /* The group, its label and its colour must all exist or the volume panel
+     renders "undefined" / drops the volume. The body diagram is a hardcoded
+     grid, so calves needs a cell there too. */
+  let CGROUPS = null, CLABELS = null, CCOLORS = null;
+  try {
+    const gStart = src.indexOf("var MUSCLE_GROUPS");
+    const gEnd = src.indexOf("var MUSCLE_COLORS");
+    const gs = {};
+    vm.createContext(gs);
+    vm.runInContext(src.slice(gStart, gEnd), gs, { filename: "muscle-groups.js" });
+    CGROUPS = gs.MUSCLE_GROUPS;
+    CLABELS = gs.MUSCLE_LABELS;
+  } catch (e) { CGROUPS = null; }
+  try {
+    const cStart = src.indexOf("var MUSCLE_COLORS");
+    const cEnd = src.indexOf("\n", cStart);
+    const cs = {};
+    vm.createContext(cs);
+    vm.runInContext(src.slice(cStart, cEnd), cs, { filename: "muscle-colors.js" });
+    CCOLORS = cs.MUSCLE_COLORS;
+  } catch (e) { CCOLORS = null; }
+  ok("calves is a known MUSCLE_GROUPS entry", Array.isArray(CGROUPS) && CGROUPS.indexOf("calves") > -1,
+    Array.isArray(CGROUPS) ? CGROUPS.join(",") : "not evaluated");
+  ok("calves has a label", !!CLABELS && CLABELS.calves === "CALVES", JSON.stringify(CLABELS && CLABELS.calves));
+  ok("calves has a colour", !!CCOLORS && /^#[0-9a-fA-F]{6}$/.test(CCOLORS.calves || ""),
+    JSON.stringify(CCOLORS && CCOLORS.calves));
+  ok("the body diagram has a cell for calves", /bodyLayout[\s\S]{0,900}"calves"/.test(src));
+
 
   /* Pike is capped at 2 days: overhead pressing competes with handstand
      skill frequency, and the handstand is the priority. */
@@ -1086,7 +1150,7 @@ ok("index.html is ASCII-only (non-BOM)", offenders.length === 0, offenders.lengt
 
 /* --- 9. laptop sync engine (lockd) -------------------------------- */
 {
-  ok("APP_VERSION bumped to v8.3", /var APP_VERSION = "v8\.3"/.test(src));
+  ok("APP_VERSION bumped to v8.4", /var APP_VERSION = "v8\.4"/.test(src));
   ok("defines lockdConfigured", /function\s+lockdConfigured\s*\(/.test(src));
   ok("defines queueLockdSync", /function\s+queueLockdSync\s*\(/.test(src));
   ok("defines syncToLaptop", /function\s+syncToLaptop\s*\(/.test(src));

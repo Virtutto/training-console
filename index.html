@@ -224,7 +224,7 @@ var PLAN = {
   }
 };
 var WINDUP_SECONDS = 5;
-var APP_VERSION = "v8.5";
+var APP_VERSION = "v8.6";
 
 /* ============================================================
    MUSCLE GROUP TAGS (exercise -> muscle groups + weight)
@@ -584,6 +584,7 @@ var state = {
   beepFired: {},
   measurementModal: null,
   measurements: [],
+  bodyField: "weight",
   exerciseSuggestions: {},
   calibrationLog: [],
   calib: null,
@@ -1795,6 +1796,161 @@ function renderMeasurementModal() {
     '</div>'+
   '</div>';
   return html;
+}
+
+/* ============================================================
+   BODY TREND (v8.6) - series, 7-day rolling average, week delta
+   Pure functions: no DOM, no storage, safe to test directly.
+   ============================================================ */
+function addDaysISO(iso, delta) {
+  var p = iso.split("-");
+  var dt = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+  dt.setDate(dt.getDate() + delta);
+  return localISO(dt);
+}
+
+function bodySeries(field, days, today) {
+  var from = addDaysISO(today, -(days - 1));
+  var out = [];
+  for (var i = 0; i < state.measurements.length; i++) {
+    var m = state.measurements[i];
+    if (m[field] == null) continue;
+    if (m.date < from || m.date > today) continue;
+    out.push({ date: m.date, value: m[field] });
+  }
+  return out;
+}
+
+function rollingAverage(series, windowDays) {
+  var w = windowDays || 7;
+  var out = [];
+  for (var i = 0; i < series.length; i++) {
+    var from = addDaysISO(series[i].date, -(w - 1));
+    var sum = 0, n = 0;
+    for (var j = 0; j <= i; j++) {
+      if (series[j].date < from || series[j].date > series[i].date) continue;
+      sum += series[j].value;
+      n++;
+    }
+    out.push({ date: series[i].date, value: Math.round((sum / n) * 100) / 100 });
+  }
+  return out;
+}
+
+function meanInWindow(field, today, fromOffset, toOffset) {
+  var from = addDaysISO(today, fromOffset);
+  var to = addDaysISO(today, toOffset);
+  var sum = 0, n = 0;
+  for (var i = 0; i < state.measurements.length; i++) {
+    var m = state.measurements[i];
+    if (m[field] == null) continue;
+    if (m.date < from || m.date > to) continue;
+    sum += m[field];
+    n++;
+  }
+  return n ? Math.round((sum / n) * 100) / 100 : null;
+}
+
+function bodyTrend(field, today) {
+  var series = bodySeries(field, 3650, today);
+  var latest = series.length ? series[series.length - 1] : null;
+  var avg7 = meanInWindow(field, today, -6, 0);
+  var prev7 = meanInWindow(field, today, -13, -7);
+  return {
+    latest: latest ? latest.value : null,
+    latestDate: latest ? latest.date : null,
+    avg7: avg7,
+    prev7: prev7,
+    delta: (avg7 != null && prev7 != null) ? Math.round((avg7 - prev7) * 100) / 100 : null
+  };
+}
+
+function bodyDeltaColor(field, delta) {
+  var t = theme();
+  if (delta == null) return TEXT_DIM;
+  if (field === "weight") {
+    return (delta >= -0.3 && delta <= 0.3) ? t.accent : "#ffb547";
+  }
+  if (delta <= -0.5) return "#39ff88";
+  if (delta >= 0.5) return "#ffb547";
+  return t.accent;
+}
+
+function setBodyField(field) {
+  state.bodyField = field === "waist" ? "waist" : "weight";
+  render();
+}
+
+function renderBodyHeader(field, today) {
+  var t = theme();
+  var tr = bodyTrend(field, today);
+  if (tr.latest == null) return "";
+  var unit = field === "weight" ? "kg" : "cm";
+  var deltaTxt = tr.delta == null ? "--" : (tr.delta > 0 ? "+" : "") + tr.delta.toFixed(1);
+  function box(val, label, color) {
+    return '<div class="statbox"><div class="statval" style="font-size:16px;color:' + color + ';">' + val +
+      '</div><div class="statlabel dim">' + label + '</div></div>';
+  }
+  return '<div class="panel" style="margin-bottom:12px;">' +
+    '<div class="dim" style="font-size:10px;letter-spacing:2px;margin-bottom:10px;">' + field.toUpperCase() + ' TREND</div>' +
+    '<div class="statgrid" style="grid-template-columns:1fr 1fr 1fr;">' +
+      box(tr.latest + " " + unit, "LATEST", t.accent) +
+      box(tr.avg7 == null ? "--" : tr.avg7.toFixed(1) + " " + unit, "7-DAY AVG", t.accent) +
+      box(deltaTxt, "VS LAST WEEK", bodyDeltaColor(field, tr.delta)) +
+    '</div></div>';
+}
+
+function renderBodyChart(field, today) {
+  var t = theme();
+  var series = bodySeries(field, 90, today);
+  if (series.length < 2) {
+    return '<div class="panel" style="text-align:center;color:' + TEXT_DIM +
+      ';font-size:12px;padding:26px;">Log at least two readings to see a trend</div>';
+  }
+
+  var full = bodySeries(field, 3650, today);
+  var avg = rollingAverage(full, 7);
+  var avgMap = {};
+  for (var a = 0; a < avg.length; a++) avgMap[avg[a].date] = avg[a].value;
+
+  var vals = series.map(function (p) { return p.value; });
+  var min = Math.min.apply(null, vals);
+  var max = Math.max.apply(null, vals);
+  var pad = (max - min) * 0.05;
+  min -= pad; max += pad;
+  var range = (max - min) || 1;
+
+  var W = 340, H = 150, L = 10, R = 330, TOP = 12, BOT = 130;
+  function xAt(i) { return L + (R - L) * (i / (series.length - 1)); }
+  function yAt(v) { return BOT - (BOT - TOP) * ((v - min) / range); }
+
+  var rawPts = [], avgPts = [], dots = [];
+  for (var i = 0; i < series.length; i++) {
+    var px = xAt(i).toFixed(1), py = yAt(series[i].value).toFixed(1);
+    rawPts.push(px + "," + py);
+    dots.push('<circle cx="' + px + '" cy="' + py + '" r="2" fill="' + t.accentDim + '"/>');
+    var av = avgMap[series[i].date];
+    if (av != null) avgPts.push(px + "," + yAt(av).toFixed(1));
+  }
+
+  var mid = Math.floor((series.length - 1) / 2);
+  var marks = [series[0], series[mid], series[series.length - 1]];
+  var labels = "";
+  for (var k = 0; k < marks.length; k++) {
+    var lx = k === 0 ? L : (k === 1 ? (L + R) / 2 : R);
+    var anchor = k === 0 ? "start" : (k === 1 ? "middle" : "end");
+    labels += '<text x="' + lx.toFixed(1) + '" y="146" fill="' + TEXT_DIM +
+      '" font-size="8" text-anchor="' + anchor + '">' + marks[k].date.slice(5) + '</text>';
+  }
+
+  return '<div class="panel" style="margin-bottom:12px;">' +
+    '<div class="dim" style="font-size:9px;letter-spacing:1px;margin-bottom:8px;">' +
+      field.toUpperCase() + ' - LAST 90 DAYS (raw + 7-day average)</div>' +
+    '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" preserveAspectRatio="xMidYMid meet">' +
+      '<polyline points="' + rawPts.join(" ") + '" fill="none" stroke="' + TEXT_DIM + '" stroke-width="1.5" stroke-linejoin="round"/>' +
+      '<polyline points="' + avgPts.join(" ") + '" fill="none" stroke="' + t.accent + '" stroke-width="2.5" stroke-linejoin="round"/>' +
+      dots.join("") + labels +
+    '</svg></div>';
 }
 
 /* ============================================================
@@ -3433,7 +3589,8 @@ function renderStats() {
   if (state.statsTab === "measurements") {
     var mFields = ["weight","chest","waist","hips","arms","thighs"];
     var mLabels = { weight:"WEIGHT (kg)", chest:"CHEST (cm)", waist:"WAIST (cm)", hips:"HIPS (cm)", arms:"ARMS (cm)", thighs:"THIGHS (cm)" };
-    var mColors = { weight:"#00e5ff", chest:"#ff9500", waist:"#ff4d5e", hips:"#b48cff", arms:"#39ff88", thighs:"#ffd60a" };
+    var bodyField = state.bodyField === "waist" ? "waist" : "weight";
+    var bodyToday = localISO(new Date());
 
     html += '<div class="panel" style="margin-bottom:16px;text-align:center;">'+
       '<button onclick="openMeasurementModal()" style="padding:12px 20px;border-radius:10px;background:'+t.accent+';color:#02080a;font-size:12px;letter-spacing:1px;font-weight:bold;">LOG MEASUREMENTS</button>'+
@@ -3442,35 +3599,25 @@ function renderStats() {
     if (state.measurements.length === 0) {
       html += '<div class="panel" style="text-align:center;color:'+TEXT_DIM+';font-size:13px;padding:30px;">No measurements logged yet. Tap the button above to start tracking.</div>';
     } else {
-      var latest = state.measurements[state.measurements.length - 1];
-      html += '<div class="panel" style="margin-bottom:16px;"><div class="dim" style="font-size:10px;letter-spacing:2px;margin-bottom:10px;">LATEST - '+latest.date+'</div>';
+      html += '<div class="panel" style="margin-bottom:12px;padding:6px;display:flex;gap:4px;">';
+      ["weight","waist"].forEach(function(f){
+        var active = bodyField === f;
+        html += '<button onclick="setBodyField(\''+f+'\')" style="flex:1;padding:8px 4px;border-radius:8px;font-size:10px;letter-spacing:1px;background:'+(active?t.accent:'transparent')+';color:'+(active?'#02080a':TEXT_DIM)+';border:none;cursor:pointer;">'+f.toUpperCase()+'</button>';
+      });
+      html += '</div>';
+
+      html += renderBodyHeader(bodyField, bodyToday);
+      html += renderBodyChart(bodyField, bodyToday);
+
+      var latestRow = state.measurements[state.measurements.length - 1];
+      html += '<div class="panel" style="margin-bottom:16px;"><div class="dim" style="font-size:10px;letter-spacing:2px;margin-bottom:10px;">LATEST - '+latestRow.date+'</div>';
       html += '<div class="statgrid" style="grid-template-columns:1fr 1fr 1fr;">';
       mFields.forEach(function(f){
-        if (latest[f] != null) {
-          html += '<div class="statbox"><div class="statval" style="font-size:16px;color:'+mColors[f]+';">'+latest[f]+'</div><div class="statlabel dim">'+mLabels[f]+'</div></div>';
+        if (latestRow[f] != null) {
+          html += '<div class="statbox"><div class="statval" style="font-size:16px;color:'+t.accent+';">'+latestRow[f]+'</div><div class="statlabel dim">'+mLabels[f]+'</div></div>';
         }
       });
       html += '</div></div>';
-
-      mFields.forEach(function(f){
-        var points = state.measurements.filter(function(m){ return m[f] != null; });
-        if (points.length < 2) return;
-        var vals = points.map(function(m){ return m[f]; });
-        var min = Math.min.apply(null, vals);
-        var max = Math.max.apply(null, vals);
-        var range = max - min || 1;
-        html += '<div class="panel" style="margin-bottom:12px;"><div class="dim" style="font-size:9px;letter-spacing:1px;margin-bottom:8px;">'+mLabels[f]+' ('+points.length+' logs)</div>';
-        html += '<div style="display:flex;align-items:flex-end;gap:2px;height:60px;">';
-        points.forEach(function(p){
-          var h = Math.round(((p[f] - min) / range) * 50) + 8;
-          html += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;">'+
-            '<span style="font-size:7px;color:'+mColors[f]+';margin-bottom:2px;">'+p[f]+'</span>'+
-            '<div style="width:100%;max-width:40px;height:'+h+'px;background:'+mColors[f]+';border-radius:2px;opacity:0.8;"></div>'+
-            '<span class="dim" style="font-size:7px;margin-top:2px;">'+p.date.slice(5)+'</span>'+
-            '</div>';
-        });
-        html += '</div></div>';
-      });
 
       html += '<div class="panel" style="margin-bottom:16px;"><div class="dim" style="font-size:10px;letter-spacing:2px;margin-bottom:8px;">HISTORY</div>';
       state.measurements.slice().reverse().forEach(function(m){
